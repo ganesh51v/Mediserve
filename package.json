@@ -7,6 +7,7 @@
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "vercel-build": "cd frontend && npm install && npm run build",
     "test": "npm --prefix backend test",
     "seed": "npm --prefix backend run seed",
     "db:clear": "npm --prefix backend run db:clear",
