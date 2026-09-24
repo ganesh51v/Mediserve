@@ -1,23 +1,8 @@
 import React from 'react';
-import { Utensils, Pill, Clock, CheckCircle2, AlertCircle, AlertTriangle } from 'lucide-react';
+import { Pill, Clock, CheckCircle2, AlertCircle, AlertTriangle } from 'lucide-react';
 import { MedicationEvent, DoseStatus } from '../../types';
 import { Badge } from '../common/Badge';
 import { Button } from '../common/Button';
-
-interface TimelineItem {
-  id: string;
-  type: 'meal' | 'medication';
-  time: string;
-  title: string;
-  subtitle?: string;
-  dosage?: string;
-  mealRelation?: string;
-  status?: DoseStatus;
-  dispensedAt?: string;
-  takenAt?: string;
-  patientName?: string;
-  onMarkTaken?: () => void;
-}
 
 interface MedicationTimelineProps {
   events: MedicationEvent[];

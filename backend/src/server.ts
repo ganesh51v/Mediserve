@@ -4,7 +4,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { config } from './config/index.js';
 import { getDatabase } from './db/database.js';
-import { seedDatabase } from './db/seed.js';
 import { initSocketIO } from './services/socket.service.js';
 import { errorHandler } from './middleware/error.middleware.js';
 import { apiLimiter } from './middleware/rateLimiter.middleware.js';
@@ -39,7 +38,7 @@ app.use(express.json());
 app.use('/api', apiLimiter);
 
 // System Health Check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req, res) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),

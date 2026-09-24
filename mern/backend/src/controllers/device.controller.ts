@@ -1,13 +1,12 @@
 import { Request, Response } from 'express';
 import { Device, IDeviceCompartment } from '../models/Device.js';
-import { Patient } from '../models/Patient.js';
 import { createAlert } from '../services/alert.service.js';
 import { processMealDetected, processDoseTaken } from '../services/mealRule.service.js';
 import { notifyDeviceUpdate } from '../services/socket.service.js';
 import { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import { v4 as uuidv4 } from 'uuid';
 
-export async function getDevices(req: AuthenticatedRequest, res: Response): Promise<void> {
+export async function getDevices(_req: AuthenticatedRequest, res: Response): Promise<void> {
   const devices = await Device.find().populate('patient_id', 'name patient_code').sort({ device_id: 1 });
 
   const enriched = devices.map((d) => {

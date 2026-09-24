@@ -82,7 +82,7 @@ export function resolveAlert(req: AuthenticatedRequest, res: Response): void {
   res.json({ success: true, alert: updated });
 }
 
-export function markAllAsRead(req: AuthenticatedRequest, res: Response): void {
+export function markAllAsRead(_req: AuthenticatedRequest, res: Response): void {
   const db = getDatabase();
   db.prepare("UPDATE alerts SET status = 'read' WHERE status = 'unread'").run();
   res.json({ success: true, message: 'All alerts marked as read.' });

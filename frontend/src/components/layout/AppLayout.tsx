@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
+import { Link, useLocation, Outlet } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
@@ -14,7 +14,6 @@ import {
   Activity,
   HeartPulse,
   Radio,
-  CheckCircle2,
   Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
@@ -25,7 +24,6 @@ import { Alert } from '../../types';
 export const AppLayout: React.FC = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [notificationOpen, setNotificationOpen] = useState<boolean>(false);

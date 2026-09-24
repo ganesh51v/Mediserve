@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { User, IUser } from '../models/User.js';
+import { User } from '../models/User.js';
 import { Patient } from '../models/Patient.js';
 import { AuditLog } from '../models/AuditLog.js';
 import { config } from '../config/index.js';
@@ -203,7 +203,7 @@ export async function getUsers(req: AuthenticatedRequest, res: Response): Promis
   res.json({ success: true, users: users.map((u) => u.toJSON()) });
 }
 
-export async function getSetupStatus(req: Request, res: Response): Promise<void> {
+export async function getSetupStatus(_req: Request, res: Response): Promise<void> {
   const count = await User.countDocuments();
   res.json({ success: true, isSetup: count > 0, userCount: count });
 }

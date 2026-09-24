@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { Medication } from '../models/Medication.js';
 import { MedicationSchedule } from '../models/MedicationSchedule.js';
 import { MedicationEvent } from '../models/MedicationEvent.js';

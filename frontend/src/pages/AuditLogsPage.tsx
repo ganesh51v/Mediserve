@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Search, RefreshCw } from 'lucide-react';
+import { Search, RefreshCw } from 'lucide-react';
 import { reportService } from '../services/reportService';
 import { AuditLog } from '../types';
 import { Card } from '../components/common/Card';

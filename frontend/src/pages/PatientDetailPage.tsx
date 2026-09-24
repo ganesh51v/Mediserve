@@ -10,12 +10,7 @@ import {
   Bell,
   Activity,
   PhoneCall,
-  ShieldAlert,
-  Plus,
-  CheckCircle2,
-  Clock,
   Battery,
-  Wifi,
 } from 'lucide-react';
 import { patientService, PatientDetailResponse } from '../services/patientService';
 import { Card } from '../components/common/Card';
@@ -119,7 +114,7 @@ export const PatientDetailPage: React.FC = () => {
     );
   }
 
-  const { patient, medications, schedules, todayEvents, device, healthRecords, alerts, adherence } = data;
+  const { patient, medications, todayEvents, device, healthRecords, alerts, adherence } = data;
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: User },

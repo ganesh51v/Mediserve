@@ -6,7 +6,6 @@ import {
   HeartHandshake,
   Cpu,
   AlertTriangle,
-  Shield,
   Activity,
   Plus,
   RefreshCw,

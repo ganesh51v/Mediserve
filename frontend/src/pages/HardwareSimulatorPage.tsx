@@ -1,22 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import {
   Radio,
-  Cpu,
   Utensils,
-  Pill,
   CheckCircle2,
   AlertCircle,
   AlertTriangle,
   Wifi,
   WifiOff,
-  Battery,
-  Send,
-  RotateCcw,
   Sparkles,
 } from 'lucide-react';
 import { deviceService } from '../services/deviceService';
-import { patientService } from '../services/patientService';
-import { Device, Patient } from '../types';
+import { Device } from '../types';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
@@ -27,7 +21,7 @@ export const HardwareSimulatorPage: React.FC = () => {
   const [selectedMeal, setSelectedMeal] = useState<'breakfast' | 'lunch' | 'dinner'>('breakfast');
   const [batteryValue, setBatteryValue] = useState<number>(0);
   const [simLogs, setSimLogs] = useState<Array<{ time: string; type: string; details: string; status: 'ok' | 'warn' | 'err' }>>([]);
-  const [loading, setLoading] = useState(true);
+
 
   useEffect(() => {
     async function load() {
@@ -40,8 +34,6 @@ export const HardwareSimulatorPage: React.FC = () => {
         }
       } catch (e) {
         console.error(e);
-      } finally {
-        setLoading(false);
       }
     }
     load();

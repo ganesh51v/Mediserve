@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileBarChart2, Download, Printer, Filter, Calendar } from 'lucide-react';
+import { Download, Printer } from 'lucide-react';
 import { reportService, ReportsSummaryResponse } from '../services/reportService';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';

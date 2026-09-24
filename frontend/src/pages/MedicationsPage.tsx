@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Pill, Search, Plus, AlertCircle, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Search, AlertCircle, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { medicationService } from '../services/medicationService';
 import { Medication } from '../types';
 import { Card } from '../components/common/Card';

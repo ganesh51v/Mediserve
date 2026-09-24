@@ -2,19 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Users,
-  Pill,
-  CheckCircle2,
   AlertTriangle,
   Plus,
-  ArrowRight,
-  Stethoscope,
   Activity,
   HeartPulse,
 } from 'lucide-react';
 import { patientService } from '../services/patientService';
 import { medicationService } from '../services/medicationService';
 import { alertService } from '../services/alertService';
-import { Patient, Alert, Medication, MedicationType, MealRelation } from '../types';
+import { Patient, Alert, MedicationType, MealRelation } from '../types';
 import { DashboardCard } from '../components/dashboard/DashboardCard';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';

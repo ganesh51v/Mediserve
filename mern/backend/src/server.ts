@@ -42,7 +42,7 @@ app.use(express.json());
 app.use('/api', apiLimiter);
 
 // System Health Check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req, res) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),

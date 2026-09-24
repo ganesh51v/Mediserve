@@ -9,7 +9,6 @@ import {
   CartesianGrid,
   BarChart,
   Bar,
-  Legend,
 } from 'recharts';
 import { AdherenceReport } from '../../types';
 import { Info } from 'lucide-react';

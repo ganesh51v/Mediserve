@@ -8,15 +8,12 @@ import {
   AlertTriangle,
   Utensils,
   PhoneCall,
-  Wifi,
-  WifiOff,
-  User,
   Sparkles,
 } from 'lucide-react';
 import { patientService } from '../services/patientService';
 import { medicationService } from '../services/medicationService';
 import { deviceService } from '../services/deviceService';
-import { Patient, MedicationEvent, DoseStatus } from '../types';
+import { Patient, MedicationEvent } from '../types';
 import { DashboardCard } from '../components/dashboard/DashboardCard';
 import { Card } from '../components/common/Card';
 import { Badge } from '../components/common/Badge';

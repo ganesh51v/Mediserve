@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import { Response } from 'express';
 import { Patient } from '../models/Patient.js';
 import { Device } from '../models/Device.js';
 import { Medication } from '../models/Medication.js';

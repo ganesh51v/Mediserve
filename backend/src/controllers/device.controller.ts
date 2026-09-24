@@ -7,7 +7,7 @@ import { createAlert } from '../services/alert.service.js';
 import { processMealDetected, processDoseTaken, processDoseMissed, MealType } from '../services/mealRule.service.js';
 import { emitEvent } from '../services/socket.service.js';
 
-export function getAllDevices(req: AuthenticatedRequest, res: Response): void {
+export function getAllDevices(_req: AuthenticatedRequest, res: Response): void {
   const db = getDatabase();
 
   const devices = db.prepare(`

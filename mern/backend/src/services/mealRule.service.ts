@@ -1,6 +1,5 @@
 import { Medication, MealRelation } from '../models/Medication.js';
-import { MedicationEvent, DoseStatus } from '../models/MedicationEvent.js';
-import { MedicationSchedule } from '../models/MedicationSchedule.js';
+import { MedicationEvent } from '../models/MedicationEvent.js';
 import { Device } from '../models/Device.js';
 import { createAlert } from './alert.service.js';
 import { deductStock } from './inventory.service.js';

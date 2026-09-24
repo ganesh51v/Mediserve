@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Cpu, Battery, Wifi, WifiOff, AlertTriangle, RefreshCw, Radio, Sparkles } from 'lucide-react';
+import { Cpu, Battery, Wifi, Radio } from 'lucide-react';
 import { deviceService } from '../services/deviceService';
 import { Device } from '../types';
-import { Card } from '../components/common/Card';
 import { Badge } from '../components/common/Badge';
 import { Button } from '../components/common/Button';
 import { SkeletonLoader } from '../components/common/SkeletonLoader';

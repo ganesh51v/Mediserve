@@ -223,7 +223,7 @@ export function getUsers(req: AuthenticatedRequest, res: Response): void {
   res.json({ success: true, users });
 }
 
-export function getSetupStatus(req: Request, res: Response): void {
+export function getSetupStatus(_req: Request, res: Response): void {
   const db = getDatabase();
   const count = (db.prepare('SELECT COUNT(*) as count FROM users').get() as { count: number }).count;
   res.json({ success: true, isSetup: count > 0, userCount: count });

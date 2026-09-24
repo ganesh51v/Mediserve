@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Plus, Filter, User, ArrowRight, Activity, ShieldAlert } from 'lucide-react';
+import { Search, Plus } from 'lucide-react';
 import { patientService } from '../services/patientService';
 import { authService } from '../services/authService';
 import { Patient, User as UserType } from '../types';
-import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { Badge } from '../components/common/Badge';
 import { Modal } from '../components/common/Modal';

@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { getDatabase } from '../db/database.js';
-import { Medication, MedicationEvent, MedicationSchedule } from '../models/types.js';
+import { Medication, MedicationEvent } from '../models/types.js';
 import { createAlert } from './alert.service.js';
 import { decrementMedicationInventory } from './inventory.service.js';
 import { emitEvent, emitToPatient } from './socket.service.js';
@@ -193,7 +193,6 @@ export function processDoseMissed(params: {
   reason?: string;
 }): MedicationEvent | null {
   const db = getDatabase();
-  const now = new Date().toISOString();
 
   let event: MedicationEvent | undefined;
 

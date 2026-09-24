@@ -9,11 +9,8 @@ import {
   Mail,
   ArrowRight,
   UserPlus,
-  Phone,
   User,
   CheckCircle2,
-  Calendar,
-  MapPin,
   Sparkles,
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';

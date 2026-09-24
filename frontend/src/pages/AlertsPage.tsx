@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Filter, CheckCircle2, ShieldAlert, AlertTriangle, AlertCircle, Clock } from 'lucide-react';
+import { Filter } from 'lucide-react';
 import { alertService } from '../services/alertService';
-import { Alert, AlertSeverity, AlertStatus } from '../types';
+import { Alert } from '../types';
 import { Card } from '../components/common/Card';
 import { Button } from '../components/common/Button';
 import { AlertCard } from '../components/dashboard/AlertCard';

@@ -6,7 +6,7 @@ import { Device } from '../models/Device.js';
 import { Alert } from '../models/Alert.js';
 import { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 
-export async function getReportsSummary(req: AuthenticatedRequest, res: Response): Promise<void> {
+export async function getReportsSummary(_req: AuthenticatedRequest, res: Response): Promise<void> {
   const [adherence, missedDoses, medications, devices, alerts] = await Promise.all([
     calculateAdherence(),
     MedicationEvent.find({ status: 'missed' })
