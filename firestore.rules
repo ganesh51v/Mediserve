@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if client is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+
+    // Patients collection
+    match /patients/{patientId} {
+      allow read, write: if isAuthenticated();
+      // Allow self-registration from the web portal
+      allow create: if true;
+    }
+
+    // Devices & Telemetry
+    match /devices/{deviceId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Medications & Schedules
+    match /medications/{medicationId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /schedules/{scheduleId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /events/{eventId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Clinical Alerts & Notifications
+    match /alerts/{alertId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Vital Signs & Health Records
+    match /healthRecords/{recordId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Audit logs (append-only)
+    match /auditLogs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if true;
+      allow update, delete: if false;
+    }
+  }
+}

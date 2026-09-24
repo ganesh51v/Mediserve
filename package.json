@@ -1,0 +1,33 @@
+{
+  "name": "mediserve",
+  "version": "1.0.0",
+  "description": "MediServe – Smart Medication Monitoring & Management Web Application",
+  "scripts": {
+    "dev": "npx concurrently -n \"backend,frontend\" -c \"blue,green\" \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "test": "npm --prefix backend test",
+    "seed": "npm --prefix backend run seed",
+    "db:clear": "npm --prefix backend run db:clear",
+    "mern:dev": "npm --prefix mern run dev",
+    "mern:backend": "npm --prefix mern/backend run dev",
+    "mern:frontend": "npm --prefix mern/frontend run dev",
+    "mern:build": "npm --prefix mern run build",
+    "mern:test": "npm --prefix mern/backend test",
+    "mern:seed": "npm --prefix mern/backend run seed",
+    "mern:clear": "npm --prefix mern/backend run db:clear"
+  },
+  "keywords": [
+    "healthcare",
+    "medication-monitoring",
+    "smart-dispenser",
+    "iot",
+    "meal-aware"
+  ],
+  "author": "MediServe Health Tech",
+  "license": "MIT",
+  "dependencies": {
+    "firebase": "^12.19.0"
+  }
+}
