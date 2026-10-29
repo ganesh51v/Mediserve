@@ -1391,7 +1391,12 @@ const isTestRunner =
   process.env.NODE_ENV === "test" ||
   Boolean(process.env.VITEST);
 
-if (!isTestRunner) {
+const isServerless =
+  Boolean(process.env.VERCEL) ||
+  Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME) ||
+  Boolean(process.env.LAMBDA_TASK_ROOT);
+
+if (!isTestRunner && !isServerless) {
   app.listen(PORT, () => {
     console.log(`MediServe API running on http://localhost:${PORT}`);
     startDoseReminderWorker();

@@ -17,28 +17,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSignIn } from "@clerk/react";
-import { useAuth, setClerkToken, resolveApiUrl } from "../hooks";
+import { useAuth, setClerkToken, resolveApiUrl, parseJsonSafely } from "../hooks";
 import { CLERK_ENABLED } from "../auth/clerk";
-
-async function safeJson(res: Response): Promise<any> {
-  const text = await res.text();
-  if (!text || text.trim().length === 0) {
-    if (!res.ok) {
-      throw new Error(
-        `Authentication server returned HTTP ${res.status} (${res.statusText || "No response"}). Please verify backend service status.`
-      );
-    }
-    return {};
-  }
-  try {
-    return JSON.parse(text);
-  } catch {
-    if (!res.ok) {
-      throw new Error(`Server returned error (${res.status}): ${text.slice(0, 100)}`);
-    }
-    throw new Error("Invalid response format received from authentication gateway.");
-  }
-}
 
 // ─── Persona Definitions ───────────────────────────────────────────────────────
 
@@ -131,7 +111,7 @@ function ClerkLoginExecutor({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password }),
           });
-          const data = await safeJson(res);
+          const data = await parseJsonSafely(res);
           if (res.ok && data.user) {
             if (data.token) {
               setClerkToken(data.token);
@@ -185,7 +165,7 @@ function ClerkLoginExecutor({
               Authorization: `Bearer ${(window as any).__clerk_token ?? ""}`,
             },
           });
-          const data = await safeJson(res);
+          const data = await parseJsonSafely(res);
           onSuccess(data.user?.role ?? "CAREGIVER");
           return;
         }
@@ -209,7 +189,7 @@ function ClerkLoginExecutor({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password }),
           });
-          const fallbackData = await safeJson(fallbackRes);
+          const fallbackData = await parseJsonSafely(fallbackRes);
           if (fallbackRes.ok && fallbackData.user) {
             if (fallbackData.token) {
               setClerkToken(fallbackData.token);

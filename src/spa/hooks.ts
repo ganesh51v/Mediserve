@@ -65,6 +65,36 @@ export function resolveApiUrl(path: string): string {
 }
 
 /**
+ * Safely parse a Response as JSON, gracefully handling non-JSON, empty, or HTML error pages.
+ */
+export async function parseJsonSafely<T = any>(res: Response): Promise<T> {
+  const text = await res.text();
+  if (!text || !text.trim()) {
+    if (!res.ok) {
+      throw new Error(
+        `Server returned HTTP ${res.status} (${res.statusText || "Empty response"}). Check backend API service.`
+      );
+    }
+    return {} as T;
+  }
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    const cleanSnippet = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 100);
+    if (!res.ok) {
+      throw new Error(
+        `Server error (${res.status}): ${cleanSnippet || res.statusText || "Invalid server response"}`
+      );
+    }
+    throw new Error(
+      cleanSnippet
+        ? `Invalid JSON received from server: "${cleanSnippet}"`
+        : "Invalid JSON response received from authentication gateway."
+    );
+  }
+}
+
+/**
  * Fetch wrapper that attaches the active session token to every request.
  * Works in both Clerk mode and dev mode transparently.
  */
@@ -75,9 +105,13 @@ export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {})
     headers.set("Authorization", `Bearer ${token}`);
   }
   const resolvedInput = typeof input === "string" ? resolveApiUrl(input) : input;
+  const isCrossOrigin =
+    typeof resolvedInput === "string" &&
+    (resolvedInput.startsWith("http://") || resolvedInput.startsWith("https://"));
+
   return fetch(resolvedInput, {
     ...init,
-    credentials: "same-origin",
+    credentials: isCrossOrigin ? "include" : "same-origin",
     headers,
   });
 }
@@ -103,7 +137,7 @@ export function useAuth() {
       setLoading(true);
       const res = await apiFetch("/api/auth/me");
       if (res.ok) {
-        const data = await res.json();
+        const data = await parseJsonSafely(res);
         setUser(data.user ?? null);
         if (!data.user && !CLERK_ENABLED) {
           setClerkToken(null);
@@ -126,12 +160,12 @@ export function useAuth() {
 
   const login = async (email: string, password: string) => {
     setError(null);
-    const res = await fetch("/api/auth/login", {
+    const res = await apiFetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password }),
     });
-    const data = await res.json();
+    const data = await parseJsonSafely(res);
     if (!res.ok) {
       throw new Error(data.error || "Login failed");
     }
@@ -190,8 +224,8 @@ export function useCaregiverDashboard() {
     try {
       setLoading(true);
       const res = await apiFetch("/api/caregiver/dashboard");
-      if (!res.ok) throw new Error("Failed to load caregiver dashboard");
-      const json = await res.json();
+      const json = await parseJsonSafely(res);
+      if (!res.ok) throw new Error(json.error || "Failed to load caregiver dashboard");
       setData(json);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error loading dashboard");
@@ -225,8 +259,8 @@ export function usePatientProfile(patientId: string, role = "CAREGIVER") {
           ? `/api/doctor/patient/${patientId}`
           : `/api/caregiver/patient/${patientId}`;
       const res = await apiFetch(endpoint);
-      if (!res.ok) throw new Error("Failed to load patient profile");
-      const json = await res.json();
+      const json = await parseJsonSafely(res);
+      if (!res.ok) throw new Error(json.error || "Failed to load patient profile");
       setData(json);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error loading profile");
@@ -260,8 +294,8 @@ export function useDoctorOverview() {
     try {
       setLoading(true);
       const res = await apiFetch("/api/doctor/overview");
-      if (!res.ok) throw new Error("Failed to load doctor overview");
-      const json = await res.json();
+      const json = await parseJsonSafely(res);
+      if (!res.ok) throw new Error(json.error || "Failed to load doctor overview");
       setRows(json.rows ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error loading overview");
@@ -287,8 +321,8 @@ export function useAlerts() {
     try {
       setLoading(true);
       const res = await apiFetch("/api/alerts");
-      if (!res.ok) throw new Error("Failed to load alerts");
-      const json = await res.json();
+      const json = await parseJsonSafely(res);
+      if (!res.ok) throw new Error(json.error || "Failed to load alerts");
       setAlerts(json.alerts ?? []);
       setNotifications(json.notifications ?? []);
     } catch (err) {
@@ -308,9 +342,9 @@ export function useAlerts() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ alertId }),
     });
+    const json = await parseJsonSafely(res);
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || "Failed to acknowledge");
+      throw new Error(json.error || "Failed to acknowledge");
     }
     await load();
   };
@@ -338,8 +372,8 @@ export function useReports() {
     try {
       setLoading(true);
       const res = await apiFetch("/api/reports");
-      if (!res.ok) throw new Error("Failed to load reports");
-      const json = await res.json();
+      const json = await parseJsonSafely(res);
+      if (!res.ok) throw new Error(json.error || "Failed to load reports");
       setBundles(json.bundles ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error loading reports");
@@ -370,8 +404,8 @@ export function useAdminDirectory() {
     try {
       setLoading(true);
       const res = await apiFetch("/api/admin/data");
-      if (!res.ok) throw new Error("Failed to load admin data");
-      const json = await res.json();
+      const json = await parseJsonSafely(res);
+      if (!res.ok) throw new Error(json.error || "Failed to load admin data");
       setData(json);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error loading admin data");
@@ -390,9 +424,9 @@ export function useAdminDirectory() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ patientId, doctorId, caregiverId }),
     });
+    const json = await parseJsonSafely(res);
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || "Failed to assign");
+      throw new Error(json.error || "Failed to assign");
     }
     await load();
   };
@@ -403,9 +437,9 @@ export function useAdminDirectory() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ serial, patientId }),
     });
+    const json = await parseJsonSafely(res);
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error || "Failed to register device");
+      throw new Error(json.error || "Failed to register device");
     }
     await load();
   };
@@ -422,8 +456,8 @@ export function useAdminDevices() {
     try {
       setLoading(true);
       const res = await apiFetch("/api/admin/devices");
-      if (!res.ok) throw new Error("Failed to load devices");
-      const json = await res.json();
+      const json = await parseJsonSafely(res);
+      if (!res.ok) throw new Error(json.error || "Failed to load devices");
       setDevices(json.devices ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error loading devices");
@@ -448,8 +482,8 @@ export function useAdminAudit() {
     try {
       setLoading(true);
       const res = await apiFetch("/api/admin/audit");
-      if (!res.ok) throw new Error("Failed to load audit logs");
-      const json = await res.json();
+      const json = await parseJsonSafely(res);
+      if (!res.ok) throw new Error(json.error || "Failed to load audit logs");
       setLogs(json.logs ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error loading audit logs");
@@ -478,8 +512,8 @@ export function useSimulator() {
     try {
       setLoading(true);
       const res = await apiFetch("/api/simulator/data");
-      if (!res.ok) throw new Error("Failed to load simulator data");
-      const json = await res.json();
+      const json = await parseJsonSafely(res);
+      if (!res.ok) throw new Error(json.error || "Failed to load simulator data");
       setDevices(json.devices ?? []);
       setPending(json.pending ?? []);
       setMessagesByDevice(json.messagesByDevice ?? {});
@@ -588,11 +622,11 @@ export function useMealActions() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(opts),
       });
+      const data = await parseJsonSafely(res);
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to record meal");
+        throw new Error(data.error || "Failed to record meal");
       }
-      return await res.json();
+      return data;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error recording meal");
       throw err;
@@ -629,11 +663,11 @@ export function usePlanActions() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(opts),
       });
+      const data = await parseJsonSafely(res);
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to create medication plan");
+        throw new Error(data.error || "Failed to create medication plan");
       }
-      return await res.json();
+      return data;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error creating plan");
       throw err;
@@ -658,11 +692,11 @@ export function useNoteActions() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ patientId, body }),
       });
+      const data = await parseJsonSafely(res);
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to add clinical note");
+        throw new Error(data.error || "Failed to add clinical note");
       }
-      return await res.json();
+      return data;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error adding note");
       throw err;
@@ -687,11 +721,11 @@ export function useDevicePairing() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ serial }),
       });
+      const data = await parseJsonSafely(res);
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to pair device");
+        throw new Error(data.error || "Failed to pair device");
       }
-      return await res.json();
+      return data;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to pair device";
       setError(msg);
@@ -708,11 +742,11 @@ export function useDevicePairing() {
       const res = await apiFetch(`/api/patients/${patientId}/unpair-device`, {
         method: "POST",
       });
+      const data = await parseJsonSafely(res);
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to unpair device");
+        throw new Error(data.error || "Failed to unpair device");
       }
-      return await res.json();
+      return data;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to unpair device";
       setError(msg);
