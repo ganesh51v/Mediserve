@@ -1,5 +1,5 @@
 /* MediServe Precision Healthcare Systems - Service Worker */
-const CACHE_VERSION = 'mediserve-v1.0.0';
+const CACHE_VERSION = 'mediserve-v1.0.2';
 const STATIC_CACHE = `mediserve-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `mediserve-dynamic-${CACHE_VERSION}`;
 const FONT_CACHE = `mediserve-fonts-${CACHE_VERSION}`;
@@ -63,6 +63,13 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  // 0. Completely bypass third-party / cross-origin requests (e.g. Clerk telemetry, probes, external APIs)
+  const isFontOrigin =
+    url.origin.includes('fonts.googleapis.com') || url.origin.includes('fonts.gstatic.com');
+  if (url.origin !== self.location.origin && !isFontOrigin) {
+    return;
+  }
+
   // Bypass Vite dev server internal assets, HMR endpoints, and tokens
   if (
     url.pathname.startsWith('/@vite') ||
@@ -89,14 +96,16 @@ self.addEventListener('fetch', (event) => {
           if (cached) return cached;
           const shell = await caches.match('/index.html');
           if (shell) return shell;
-          return caches.match('/');
+          const root = await caches.match('/');
+          if (root) return root;
+          return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
         })
     );
     return;
   }
 
   // 2. Google Fonts & Web Fonts: Stale-while-revalidate
-  if (url.origin.includes('fonts.googleapis.com') || url.origin.includes('fonts.gstatic.com')) {
+  if (isFontOrigin) {
     event.respondWith(
       caches.open(FONT_CACHE).then(async (cache) => {
         const cachedResponse = await cache.match(request);
@@ -108,7 +117,7 @@ self.addEventListener('fetch', (event) => {
             return networkResponse;
           })
           .catch(() => cachedResponse);
-        return cachedResponse || fetchPromise;
+        return cachedResponse || fetchPromise || new Response(null, { status: 404 });
       })
     );
     return;
@@ -164,15 +173,23 @@ self.addEventListener('fetch', (event) => {
             return networkResponse;
           })
           .catch(() => cached);
-        return cached || fetchPromise;
+        return cached || fetchPromise || new Response(null, { status: 404 });
       })
     );
     return;
   }
 
-  // Default: Network with cache fallback
+  // 5. Default: Pass-through for non-GET; network with fallback for GET
+  if (request.method !== 'GET') {
+    return;
+  }
+
   event.respondWith(
-    fetch(request).catch(() => caches.match(request))
+    fetch(request).catch(async () => {
+      const match = await caches.match(request);
+      if (match) return match;
+      return new Response(null, { status: 504, statusText: 'Offline' });
+    })
   );
 });
 

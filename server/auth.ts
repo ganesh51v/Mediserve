@@ -914,15 +914,20 @@ export async function handleLogout(req: Request, res: Response): Promise<void> {
  * Handle current user resolution (/api/auth/me)
  */
 export async function handleMe(req: Request, res: Response): Promise<void> {
-  const token = extractRequestToken(req);
-  if (!token) {
+  try {
+    const token = extractRequestToken(req);
+    if (!token) {
+      res.json({ user: null });
+      return;
+    }
+    const session = await verifySessionToken(token);
+    if (!session) {
+      res.json({ user: null });
+      return;
+    }
+    res.json({ user: session });
+  } catch (err) {
+    console.error("[AUTH] Error in handleMe, safely returning null user:", err);
     res.json({ user: null });
-    return;
   }
-  const session = await verifySessionToken(token);
-  if (!session) {
-    res.json({ user: null });
-    return;
-  }
-  res.json({ user: session });
 }

@@ -92,6 +92,12 @@ app.use(
     credentials: true,
   })
 );
+app.use((req, _res, next) => {
+  if (req.body !== undefined) {
+    (req as any)._body = true;
+  }
+  next();
+});
 app.use(express.json());
 app.use("/api/v1", v1Router);
 
@@ -1414,6 +1420,14 @@ if (fs.existsSync(path.join(clientDist, "index.html"))) {
     res.sendFile(path.join(clientDist, "index.html"));
   });
 }
+
+// ─── Global Error Handler ─────────────────────────────────────────────────────
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("[MediServe Global Server Error]", err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: err?.message || "Internal Server Error" });
+  }
+});
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
