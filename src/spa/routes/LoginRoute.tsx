@@ -8,17 +8,13 @@
  *  - Interactive password visibility toggle (Show / Hide passcode)
  *  - Station persistence toggle ("Remember workstation across 12h shift")
  *  - Integrated 24/7 Hospital IT Help modal
- *  - Dual-mode authentication:
- *      * Station Access (Direct hospital DB verification via /api/auth/login)
- *      * Enterprise SSO (Clerk Identity provider via useSignIn())
+ *  - Direct Hospital Station Access authentication via /api/auth/login
  *  - Fully responsive from mobile devices to high-resolution clinical monitors
  */
 
 import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { useSignIn } from "@clerk/react";
-import { useAuth, setClerkToken, resolveApiUrl, parseJsonSafely } from "../hooks";
-import { CLERK_ENABLED } from "../auth/clerk";
+import { useAuth } from "../hooks";
 
 // ─── Persona Definitions ───────────────────────────────────────────────────────
 
@@ -70,164 +66,11 @@ const CLINICAL_PERSONAS: ClinicalPersona[] = [
   },
 ];
 
-// ─── Clerk Headless Executor ──────────────────────────────────────────────────
-
-interface ClerkLoginProps {
-  email: string;
-  password: string;
-  onSuccess: (role: string) => void;
-  onError: (msg: string) => void;
-  onLoadingChange: (loading: boolean) => void;
-  trigger: boolean;
-}
-
-function ClerkLoginExecutor({
-  email,
-  password,
-  onSuccess,
-  onError,
-  onLoadingChange,
-  trigger,
-}: ClerkLoginProps) {
-  const { signIn, setActive } = useSignIn() as any;
-
-  useEffect(() => {
-    if (!trigger) return;
-
-    onLoadingChange(true);
-
-    const executeAuth = async () => {
-      // 1. If it's a known intranet/workstation account (.local) or station persona,
-      // route via the Station Gateway directly so clinicians are never blocked.
-      const isLocalDomain =
-        email.toLowerCase().endsWith(".local") ||
-        email.toLowerCase().includes("mediserve.local") ||
-        CLINICAL_PERSONAS.some((p) => p.email.toLowerCase() === email.toLowerCase());
-
-      if (isLocalDomain) {
-        try {
-          const res = await fetch(resolveApiUrl("/api/auth/login"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password }),
-          });
-          const data = await parseJsonSafely(res);
-          if (res.ok && data.user) {
-            if (data.token) {
-              setClerkToken(data.token);
-            }
-            onSuccess(data.user.role ?? "CAREGIVER");
-            return;
-          }
-          throw new Error(data.error || "Invalid station credentials.");
-        } catch (err: unknown) {
-          onError(
-            err instanceof Error
-              ? err.message
-              : "Authentication failed. Check credentials or select a preset persona."
-          );
-          return;
-        } finally {
-          onLoadingChange(false);
-        }
-      }
-
-      // 2. Enterprise SSO via Clerk
-      if (!signIn) {
-        onError("Enterprise SSO provider is initializing. Please try again.");
-        onLoadingChange(false);
-        return;
-      }
-
-      try {
-        // Step A: Create sign-in session
-        let result = await signIn.create({ identifier: email, password });
-
-        // Step B: If first factor is needed (e.g. password factor challenge)
-        if (result.status === "needs_first_factor") {
-          const hasPasswordStrategy = result.supportedFirstFactors?.some(
-            (f: any) => f.strategy === "password"
-          );
-          if (hasPasswordStrategy) {
-            result = await signIn.attemptFirstFactor({
-              strategy: "password",
-              password,
-            });
-          }
-        }
-
-        // Step C: If completed, set session
-        if (result.status === "complete") {
-          await setActive({ session: result.createdSessionId });
-          await new Promise((r) => setTimeout(r, 400));
-          const res = await fetch(resolveApiUrl("/api/auth/me"), {
-            headers: {
-              Authorization: `Bearer ${(window as any).__clerk_token ?? ""}`,
-            },
-          });
-          const data = await parseJsonSafely(res);
-          onSuccess(data.user?.role ?? "CAREGIVER");
-          return;
-        }
-
-        // Step D: Secondary factor needed (MFA / Authenticator)
-        if (result.status === "needs_second_factor") {
-          throw new Error(
-            "Enterprise SSO requires secondary verification (MFA). Please authenticate via your enterprise token or switch to Station Access."
-          );
-        }
-
-        // Uncompleted status fallback
-        throw new Error(
-          `SSO sign-in incomplete (${result.status}). Check enterprise identity provider or switch to Station Access.`
-        );
-      } catch (err: unknown) {
-        // Fallback: If enterprise SSO fails, attempt station login if valid
-        try {
-          const fallbackRes = await fetch(resolveApiUrl("/api/auth/login"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password }),
-          });
-          const fallbackData = await parseJsonSafely(fallbackRes);
-          if (fallbackRes.ok && fallbackData.user) {
-            if (fallbackData.token) {
-              setClerkToken(fallbackData.token);
-            }
-            onSuccess(fallbackData.user.role ?? "CAREGIVER");
-            return;
-          }
-        } catch {
-          // Fallback ignored; show original error
-        }
-
-        onError(
-          err instanceof Error
-            ? err.message
-            : "Enterprise SSO sign-in failed. Please verify credentials."
-        );
-      } finally {
-        onLoadingChange(false);
-      }
-    };
-
-    executeAuth();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trigger]);
-
-  return null;
-}
-
 // ─── Main Login Component ─────────────────────────────────────────────────────
 
 export function LoginRoute() {
   const { login, user, isLoaded, isSignedIn } = useAuth();
   const navigate = useNavigate();
-
-  // Authentication mode: station credentials vs enterprise SSO
-  const [authMode, setAuthMode] = useState<"station" | "sso">(
-    CLERK_ENABLED ? "station" : "station"
-  );
 
   // Selected persona state
   const [selectedPersonaId, setSelectedPersonaId] = useState<string>("caregiver");
@@ -242,11 +85,6 @@ export function LoginRoute() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
-
-  // Clerk trigger state
-  const [clerkTrigger, setClerkTrigger] = useState(false);
-  const [pendingEmail, setPendingEmail] = useState("");
-  const [pendingPassword, setPendingPassword] = useState("");
 
   // Load saved terminal preference on mount
   useEffect(() => {
@@ -275,13 +113,6 @@ export function LoginRoute() {
     }
   }, [isLoaded, isSignedIn, user, navigate]);
 
-  const handleClerkSuccess = (role: string) => {
-    navigate(
-      role === "ADMIN" ? "/admin" : role === "DOCTOR" ? "/doctor" : "/caregiver",
-      { replace: true }
-    );
-  };
-
   const selectPersona = (persona: ClinicalPersona) => {
     setSelectedPersonaId(persona.id);
     setEmail(persona.email);
@@ -305,30 +136,18 @@ export function LoginRoute() {
       localStorage.removeItem("mediserve_saved_workstation_email");
     }
 
-    const isLocalDomain =
-      email.toLowerCase().endsWith(".local") ||
-      email.toLowerCase().includes("mediserve.local") ||
-      CLINICAL_PERSONAS.some((p) => p.email.toLowerCase() === email.toLowerCase());
-
-    if (authMode === "sso" && CLERK_ENABLED && !isLocalDomain) {
-      setPendingEmail(email);
-      setPendingPassword(password);
-      setClerkTrigger((t) => !t);
-    } else {
-      // Direct Station Login via local API (handles local personas & station mode)
-      setLoading(true);
-      try {
-        const res = await login(email, password);
-        navigate(res.redirect || "/caregiver");
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Authentication failed. Check credentials or select a preset persona."
-        );
-      } finally {
-        setLoading(false);
-      }
+    setLoading(true);
+    try {
+      const res = await login(email, password);
+      navigate(res.redirect || "/caregiver");
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Authentication failed. Check credentials or select a preset persona."
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -368,18 +187,6 @@ export function LoginRoute() {
           </div>
         </div>
       </header>
-
-      {/* Clerk headless executor */}
-      {CLERK_ENABLED && (
-        <ClerkLoginExecutor
-          email={pendingEmail}
-          password={pendingPassword}
-          trigger={clerkTrigger}
-          onSuccess={handleClerkSuccess}
-          onError={setError}
-          onLoadingChange={setLoading}
-        />
-      )}
 
       {/* ── Main Hero & Login Split Container ── */}
       <main className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-8 lg:p-12 z-10">
@@ -494,23 +301,12 @@ export function LoginRoute() {
             </div>
           </div>
 
-          {/* ── RIGHT PANEL: Clinical Authentication Console ── */}
+          {/* ── RIGHT PANEL: Workstation Authentication Console ── */}
           <div className="lg:col-span-7 p-6 sm:p-8 md:p-10 flex flex-col justify-center bg-white">
             <div className="max-w-md mx-auto w-full">
               {/* Header Title */}
               <div>
-                <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#0D9488]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#0D9488]" />
-                    Clinical Authentication
-                  </span>
-                  {CLERK_ENABLED && (
-                    <span className="text-[10px] font-mono bg-[#F0FDFA] text-[#0D9488] border border-[#99F6E4] px-2 py-0.5 rounded">
-                      Enterprise SSO Enabled
-                    </span>
-                  )}
-                </div>
-                <h1 className="mt-2 text-2xl sm:text-3xl font-extrabold text-[#102A43] tracking-tight">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-[#102A43] tracking-tight">
                   Workstation Sign In
                 </h1>
                 <p className="mt-1.5 text-xs sm:text-sm text-[#627D98] leading-relaxed">
@@ -573,40 +369,6 @@ export function LoginRoute() {
                 </div>
               </div>
 
-              {/* ── Mode Switcher (if Clerk is configured) ── */}
-              {CLERK_ENABLED && (
-                <div className="mt-5 p-1 rounded-lg bg-[#F4F7FA] border border-[#D9E2EC] flex text-xs">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAuthMode("station");
-                      setError(null);
-                    }}
-                    className={`flex-1 py-1.5 rounded-md font-medium transition-all ${
-                      authMode === "station"
-                        ? "bg-white text-[#102A43] shadow-xs font-semibold"
-                        : "text-[#627D98] hover:text-[#102A43]"
-                    }`}
-                  >
-                    Clinical Station Access
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAuthMode("sso");
-                      setError(null);
-                    }}
-                    className={`flex-1 py-1.5 rounded-md font-medium transition-all ${
-                      authMode === "sso"
-                        ? "bg-white text-[#102A43] shadow-xs font-semibold"
-                        : "text-[#627D98] hover:text-[#102A43]"
-                    }`}
-                  >
-                    Enterprise SSO (Clerk)
-                  </button>
-                </div>
-              )}
-
               {/* Error Display */}
               {error && (
                 <div className="mt-4 border border-[#FCA5A5] bg-[#FEF2F2] p-3 text-xs font-medium text-[#DC2626] rounded-lg animate-shake">
@@ -623,25 +385,13 @@ export function LoginRoute() {
                     </svg>
                     <div className="flex-1">
                       <p>{error}</p>
-                      {authMode === "sso" && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAuthMode("station");
-                            setError(null);
-                          }}
-                          className="mt-1.5 inline-flex items-center gap-1 font-bold text-[#0D9488] hover:underline cursor-pointer"
-                        >
-                          Switch to Clinical Station Access →
-                        </button>
-                      )}
                     </div>
                   </div>
                 </div>
               )}
 
               {/* ── Credential Form ── */}
-              <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+              <form onSubmit={handleSubmit} className="mt-6 space-y-4">
                 {/* Email Identity */}
                 <div>
                   <label className="block text-xs font-semibold text-[#102A43] mb-1.5">
@@ -809,13 +559,7 @@ export function LoginRoute() {
                       <span>Authenticating Clinical Session…</span>
                     </>
                   ) : (
-                    <>
-                      <span>
-                        {authMode === "sso"
-                          ? "Verify Enterprise SSO →"
-                          : "Verify & Enter Clinical Gateway →"}
-                      </span>
-                    </>
+                    <span>Verify &amp; Enter Clinical Gateway &rarr;</span>
                   )}
                 </button>
               </form>
