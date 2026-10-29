@@ -13,12 +13,12 @@ import express from "express";
 import cors from "cors";
 import { SignJWT, jwtVerify, decodeJwt } from "jose";
 import bcrypt from "bcryptjs";
-import { db, type DBMedicationEvent } from "../src/lib/db.js";
-import { startOfDay, endOfDay } from "../src/lib/constants.js";
-import { v1Router } from "./v1/routes.js";
-import { caregiverPatientEditorRouter, handleCreateCaregiverPatient } from "./caregiverPatientEditor.js";
-import { profileRouter } from "./profile.js";
-import { startDoseReminderWorker } from "./workers/doseReminderWorker.js";
+import { db, type DBMedicationEvent } from "../src/lib/db";
+import { startOfDay, endOfDay } from "../src/lib/constants";
+import { v1Router } from "./v1/routes";
+import { caregiverPatientEditorRouter, handleCreateCaregiverPatient } from "./caregiverPatientEditor";
+import { profileRouter } from "./profile";
+import { startDoseReminderWorker } from "./workers/doseReminderWorker";
 import {
   handleRegister,
   handleLogin,
@@ -31,7 +31,7 @@ import {
   extractRequestToken,
   verifySessionToken,
   signSessionToken,
-} from "./auth.js";
+} from "./auth";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -92,9 +92,33 @@ app.use(
     credentials: true,
   })
 );
-app.use((req, _res, next) => {
-  if (req.body !== undefined) {
-    (req as any)._body = true;
+app.use((req: any, _res: any, next: any) => {
+  if (req.body !== undefined && !req._body) {
+    req._body = true;
+  }
+  const originalUrl =
+    (req.headers["x-matched-path"] as string) ||
+    (req.headers["x-vercel-matched-path"] as string) ||
+    (req.headers["x-forwarded-uri"] as string) ||
+    (req.headers["x-original-url"] as string);
+
+  if (originalUrl && typeof originalUrl === "string") {
+    const queryIdx = req.url ? req.url.indexOf("?") : -1;
+    const queryStr = queryIdx !== -1 ? req.url.slice(queryIdx) : "";
+    req.url = originalUrl.includes("?") ? originalUrl : `${originalUrl}${queryStr}`;
+  } else if (req.query && req.query.__path) {
+    const pathParam = Array.isArray(req.query.__path) ? req.query.__path.join("/") : req.query.__path;
+    const cleanPath = String(pathParam).replace(/^\/+/, "");
+    const queryParams = new URLSearchParams();
+    if (typeof req.query === "object") {
+      for (const [k, v] of Object.entries(req.query)) {
+        if (k !== "__path" && v !== undefined) {
+          queryParams.set(k, String(v));
+        }
+      }
+    }
+    const q = queryParams.toString();
+    req.url = `/api/${cleanPath}${q ? `?${q}` : ""}`;
   }
   next();
 });
@@ -1438,6 +1462,8 @@ const isTestRunner =
 
 const isServerless =
   Boolean(process.env.VERCEL) ||
+  Boolean(process.env.VERCEL_ENV) ||
+  Boolean(process.env.NOW_REGION) ||
   Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME) ||
   Boolean(process.env.LAMBDA_TASK_ROOT);
 
