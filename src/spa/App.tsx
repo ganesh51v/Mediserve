@@ -15,6 +15,8 @@ import { AdminDirectoryRoute } from "./routes/AdminDirectoryRoute";
 import { AdminAuditRoute } from "./routes/AdminAuditRoute";
 import { AdminDevicesRoute } from "./routes/AdminDevicesRoute";
 import { SimulatorRoute } from "./routes/SimulatorRoute";
+import { ProfileRoute } from "./routes/ProfileRoute";
+import { CaregiverPatientEditorRoute } from "./routes/CaregiverPatientEditorRoute";
 
 /**
  * Route guard component that enforces Clerk authentication and role-based access.
@@ -230,6 +232,42 @@ export default function App() {
           element={
             <ProtectedRoute allowedRoles={["ADMIN", "CAREGIVER", "DOCTOR"]}>
               <SimulatorRoute />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 15. User Profile Management */}
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <ProfileRoute />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 16. Caregiver Patient Details Form Editor & Onboarding */}
+        <Route
+          path="/caregiver/patient-editor"
+          element={
+            <ProtectedRoute allowedRoles={["CAREGIVER", "ADMIN"]}>
+              <CaregiverPatientEditorRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/caregiver/patient-editor/:id"
+          element={
+            <ProtectedRoute allowedRoles={["CAREGIVER", "ADMIN"]}>
+              <CaregiverPatientEditorRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/caregiver/patients/manage"
+          element={
+            <ProtectedRoute allowedRoles={["CAREGIVER", "ADMIN"]}>
+              <CaregiverPatientEditorRoute />
             </ProtectedRoute>
           }
         />

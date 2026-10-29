@@ -68,14 +68,20 @@ export function CaregiverPatientEditorRoute() {
           </div>
 
           {/* Navigation Links Back to Patient Monitor */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to="/caregiver"
+              className="inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 text-xs font-semibold text-[#334E68] bg-[#FFFFFF] border border-[#D9E2EC] rounded-md hover:bg-[#F4F7FA] transition-colors"
+            >
+              <span>&larr;</span>
+              <span>Back to Station</span>
+            </Link>
             {selectedPatientId && (
               <Link
                 to={`/caregiver/patients/${selectedPatientId}`}
                 className="inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 text-xs font-semibold text-[#0D9488] bg-[#F0FDFA] border border-[#99F6E4] rounded-md hover:bg-[#CCFBF1] transition-colors shadow-2xs"
               >
-                <span>&larr;</span>
-                <span>View Patient Dashboard</span>
+                <span>View Patient Dashboard &rarr;</span>
               </Link>
             )}
           </div>

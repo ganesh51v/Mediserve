@@ -14,10 +14,25 @@ export function Shell({
 }) {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = React.useState(false);
+  const profileMenuRef = React.useRef<HTMLDivElement>(null);
   const [isOnline, setIsOnline] = React.useState(
     typeof navigator !== "undefined" ? navigator.onLine : true
   );
   const [canInstall, setCanInstall] = React.useState(false);
+
+  // Monitor clicks outside profile menu to close it
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    }
+    if (profileMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [profileMenuOpen]);
 
   // Monitor online / offline network status
   React.useEffect(() => {
@@ -139,13 +154,96 @@ export function Shell({
 
             <div className="h-4 w-px bg-[#D9E2EC]" />
 
-            {/* User Session Chip */}
-            <div className="flex items-center gap-2 text-xs bg-[#F4F7FA] border border-[#D9E2EC] px-3 py-1.5 rounded-md">
-              <span className="font-mono font-bold text-[#0D9488] uppercase tracking-wider text-[10px]">
-                {user.role}
-              </span>
-              <span className="text-[#CBD5E1]">&middot;</span>
-              <span className="truncate max-w-[140px] font-medium text-[#102A43]">{user.name}</span>
+            {/* User Profile Dropdown */}
+            <div className="relative" ref={profileMenuRef}>
+              <button
+                type="button"
+                onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                aria-expanded={profileMenuOpen}
+                aria-haspopup="true"
+                className="flex items-center gap-2 text-xs bg-[#F4F7FA] border border-[#D9E2EC] hover:border-[#9FB3C8] hover:bg-[#EDF2F7] px-3 py-1.5 rounded-md transition-all cursor-pointer select-none min-h-[38px]"
+              >
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#0D9488] text-white font-bold text-[10px]">
+                  {user.name ? user.name.charAt(0).toUpperCase() : "U"}
+                </span>
+                <span className="font-mono font-bold text-[#0D9488] uppercase tracking-wider text-[10px]">
+                  {user.role}
+                </span>
+                <span className="text-[#CBD5E1]">&middot;</span>
+                <span className="truncate max-w-[130px] font-medium text-[#102A43]">{user.name}</span>
+                <svg
+                  className={`h-3.5 w-3.5 text-[#627D98] transition-transform duration-150 ${profileMenuOpen ? "rotate-180" : ""}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Profile Dropdown Menu Card */}
+              {profileMenuOpen && (
+                <div className="absolute right-0 mt-2 w-64 rounded-xl border border-[#D9E2EC] bg-white p-2 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="px-3 py-2 border-b border-[#EDF2F7]">
+                    <p className="text-xs font-bold text-[#102A43] truncate">{user.name}</p>
+                    <p className="text-[11px] text-[#627D98] truncate">{user.email}</p>
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#0D9488]" />
+                      <span className="text-[10px] font-mono uppercase font-bold text-[#0D9488]">
+                        {user.role} Station
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="py-1">
+                    <Link
+                      to="/profile"
+                      onClick={() => setProfileMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#334E68] hover:bg-[#F0FDFA] hover:text-[#0D9488] rounded-lg transition-colors cursor-pointer"
+                    >
+                      <svg className="h-4 w-4 shrink-0 text-[#0D9488]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <div>
+                        <div>View &amp; Edit Profile</div>
+                        <div className="text-[10px] font-normal text-[#627D98]">Personal and account details</div>
+                      </div>
+                    </Link>
+
+                    {(user.role === "CAREGIVER" || user.role === "ADMIN") && (
+                      <Link
+                        to="/caregiver/patient-editor"
+                        onClick={() => setProfileMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#334E68] hover:bg-[#F0FDFA] hover:text-[#0D9488] rounded-lg transition-colors cursor-pointer"
+                      >
+                        <svg className="h-4 w-4 shrink-0 text-[#0D9488]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        <div>
+                          <div>Patient Details Editor</div>
+                          <div className="text-[10px] font-normal text-[#627D98]">Manage patient demographics</div>
+                        </div>
+                      </Link>
+                    )}
+                  </div>
+
+                  <div className="border-t border-[#EDF2F7] pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        onLogout();
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-[#DC2626] hover:bg-[#FEF2F2] rounded-lg transition-colors cursor-pointer text-left"
+                    >
+                      <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      <span>Sign out of Station</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <button
@@ -195,14 +293,37 @@ export function Shell({
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-[#D9E2EC] bg-[#FFFFFF] px-4 pt-3 pb-5 shadow-lg animate-in fade-in slide-in-from-top-2 duration-150">
             {/* Mobile User Profile Banner */}
-            <div className="mb-3 flex items-center justify-between rounded-lg border border-[#EDF2F7] bg-[#F4F7FA] p-3 text-xs">
-              <div className="min-w-0">
-                <div className="font-semibold text-[#102A43] truncate">{user.name}</div>
-                <div className="text-[10px] text-[#627D98] truncate">{user.email}</div>
+            <div className="mb-3 rounded-lg border border-[#EDF2F7] bg-[#F4F7FA] p-3 text-xs">
+              <div className="flex items-center justify-between mb-2">
+                <div className="min-w-0">
+                  <div className="font-semibold text-[#102A43] truncate">{user.name}</div>
+                  <div className="text-[10px] text-[#627D98] truncate">{user.email}</div>
+                </div>
+                <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#0D9488] bg-[#F0FDFA] border border-[#99F6E4] px-2 py-0.5 rounded">
+                  {user.role}
+                </span>
               </div>
-              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#0D9488] bg-[#F0FDFA] border border-[#99F6E4] px-2 py-0.5 rounded">
-                {user.role}
-              </span>
+              <div className="flex items-center gap-2 pt-2 border-t border-[#D9E2EC]">
+                <Link
+                  to="/profile"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-xs font-semibold text-[#0D9488] hover:underline"
+                >
+                  Edit Profile &rarr;
+                </Link>
+                {(user.role === "CAREGIVER" || user.role === "ADMIN") && (
+                  <>
+                    <span className="text-[#CBD5E1]">&middot;</span>
+                    <Link
+                      to="/caregiver/patient-editor"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="text-xs font-semibold text-[#334E68] hover:underline"
+                    >
+                      Patient Editor &rarr;
+                    </Link>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Mobile Navigation Links */}
@@ -305,10 +426,12 @@ export function PriorityMark({ priority }: { priority: string }) {
 
 export function Panel({
   title,
+  action,
   children,
   className = "",
 }: {
   title?: string;
+  action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -317,11 +440,12 @@ export function Panel({
       className={`border border-[#D9E2EC] bg-[#FFFFFF] p-4 sm:p-6 rounded-xl shadow-[0_1px_3px_0_rgba(16,42,69,0.04)] transition-all duration-200 hover:border-[#CBD5E1] hover:shadow-[0_2px_6px_0_rgba(16,42,69,0.08)] ${className}`}
     >
       {title ? (
-        <div className="mb-4 flex items-center justify-between border-b border-[#D9E2EC]/80 pb-3">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-[#D9E2EC]/80 pb-3">
           <h2 className="font-sans text-sm font-semibold tracking-wide text-[#102A43] uppercase flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-[#0D9488]" />
             {title}
           </h2>
+          {action ? <div className="flex items-center gap-2">{action}</div> : null}
         </div>
       ) : null}
       {children}

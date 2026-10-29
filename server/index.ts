@@ -16,6 +16,8 @@ import bcrypt from "bcryptjs";
 import { db, type DBMedicationEvent } from "../src/lib/db.js";
 import { startOfDay, endOfDay } from "../src/lib/constants.js";
 import { v1Router } from "./v1/routes.js";
+import { caregiverPatientEditorRouter, handleCreateCaregiverPatient } from "./caregiverPatientEditor.js";
+import { profileRouter } from "./profile.js";
 import { startDoseReminderWorker } from "./workers/doseReminderWorker.js";
 import {
   handleRegister,
@@ -320,6 +322,12 @@ app.get("/api/auth/me", handleMe);
 app.get("/api/auth/verification-status", handleVerificationStatus);
 app.post("/api/admin/verify-user", requireAuth(["ADMIN"]), handleVerifyUser);
 
+// ─── Profile routes ───────────────────────────────────────────────────────────
+app.use("/api/profile", profileRouter);
+
+// ─── Caregiver Patient Editor & Onboarding routes ─────────────────────────────
+app.use("/api/caregiver", caregiverPatientEditorRouter);
+app.post("/api/patients", requireAuth(["CAREGIVER", "ADMIN"]), handleCreateCaregiverPatient);
 
 // ─── Caregiver routes ─────────────────────────────────────────────────────────
 

@@ -6,6 +6,7 @@ import {
   handleGetCaregiverPatient,
   handleUpdateCaregiverPatient,
   handleGetAssignedPatients,
+  handleCreateCaregiverPatient,
   isCaregiverAuthorizedForPatient,
 } from "../../server/caregiverPatientEditor";
 
@@ -422,6 +423,99 @@ describe("Caregiver Patient Details Form Editor Test Suite", () => {
       assert.equal(isAuth1B, false, "Caregiver 1 is NOT authorized for Patient B");
       assert.equal(isAuth2A, false, "Caregiver 2 is NOT authorized for Patient A");
       assert.equal(isAuth2B, true, "Caregiver 2 is authorized for Patient B");
+    });
+  });
+
+  describe("5. Onboarding / Adding New Patients", () => {
+    test("successfully creates and onboards new patient and assigns to requesting caregiver", async () => {
+      const newPatientPayload = {
+        name: "Eleanor Vance",
+        dateOfBirth: "1960-04-15",
+        sex: "Female",
+        emergencyName: "Robert Vance (Son)",
+        emergencyPhone: "+1 (555) 345-6789",
+        notes: "Room 304 · Diabetic regimen",
+      };
+
+      const { req, res } = createMockReqRes({
+        method: "POST",
+        token: caregiverToken1,
+        body: newPatientPayload,
+      });
+
+      await handleCreateCaregiverPatient(req, res);
+
+      assert.equal(res.statusCode, 201, "Must return HTTP 201 Created");
+      assert.equal(res.body.ok, true);
+      assert.equal(res.body.patient.name, "Eleanor Vance");
+      assert.ok(res.body.patient.id, "Should assign a new ID");
+      assert.ok(res.body.patient.mrn, "Should assign an MRN");
+
+      // Verify stored in DB
+      const stored = db.patients.find((p) => p.id === res.body.patient.id);
+      assert.ok(stored, "New patient must exist in db.patients");
+      assert.equal(stored.name, "Eleanor Vance");
+
+      // Verify active assignment
+      const asgn = db.patientAssignments.find(
+        (a) => a.patientId === res.body.patient.id && a.caregiverId === caregiverProfile1.id
+      );
+      assert.ok(asgn, "New patient must be assigned to caregiver 1");
+      assert.equal(asgn.active, true);
+    });
+
+    test("rejects missing patient name with 400 Bad Request", async () => {
+      const { req, res } = createMockReqRes({
+        method: "POST",
+        token: caregiverToken1,
+        body: {
+          name: "",
+          dateOfBirth: "1960-04-15",
+          emergencyName: "Contact",
+          emergencyPhone: "+15551234567",
+        },
+      });
+
+      await handleCreateCaregiverPatient(req, res);
+
+      assert.equal(res.statusCode, 400);
+      assert.match(res.body.error, /legal name is required/i);
+    });
+
+    test("rejects future date of birth with 400 Bad Request", async () => {
+      const futureDate = new Date(Date.now() + 86400000 * 30).toISOString().split("T")[0];
+      const { req, res } = createMockReqRes({
+        method: "POST",
+        token: caregiverToken1,
+        body: {
+          name: "Test Patient",
+          dateOfBirth: futureDate,
+          emergencyName: "Contact",
+          emergencyPhone: "+15551234567",
+        },
+      });
+
+      await handleCreateCaregiverPatient(req, res);
+
+      assert.equal(res.statusCode, 400);
+      assert.match(res.body.error, /future/i);
+    });
+
+    test("rejects unauthenticated request with 401 Unauthorized", async () => {
+      const { req, res } = createMockReqRes({
+        method: "POST",
+        token: null,
+        body: {
+          name: "Test Patient",
+          dateOfBirth: "1970-01-01",
+          emergencyName: "Contact",
+          emergencyPhone: "+15551234567",
+        },
+      });
+
+      await handleCreateCaregiverPatient(req, res);
+
+      assert.equal(res.statusCode, 401);
     });
   });
 });

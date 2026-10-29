@@ -312,8 +312,144 @@ export async function handleUpdateCaregiverPatient(req: Request, res: Response):
   });
 }
 
+/**
+ * POST /api/caregiver/patients
+ * Onboards and registers a new clinical patient in the hospital database,
+ * automatically creating an active patient assignment for the requesting caregiver.
+ */
+export async function handleCreateCaregiverPatient(req: Request, res: Response): Promise<void> {
+  const token = extractRequestToken(req);
+  if (!token) {
+    res.status(401).json({ error: "Unauthenticated: Sign-in required." });
+    return;
+  }
+
+  const session = await verifySessionToken(token);
+  if (!session) {
+    res.status(401).json({ error: "Session expired or invalid." });
+    return;
+  }
+
+  if (session.role !== "CAREGIVER" && session.role !== "ADMIN") {
+    res.status(403).json({ error: "Forbidden: Caregiver or Administrator privileges required to onboard patients." });
+    return;
+  }
+
+  // CSRF protection
+  const csrf = checkCsrf(req);
+  if (!csrf.safe) {
+    res.status(403).json({ error: csrf.reason || "Forbidden: CSRF check failed." });
+    return;
+  }
+
+  const { name, dateOfBirth, sex, emergencyName, emergencyPhone, notes, mrn } = req.body || {};
+
+  // 1. Validate full legal name
+  if (!name || typeof name !== "string" || name.trim().length < 2) {
+    res.status(400).json({ error: "Patient full legal name is required (minimum 2 characters)." });
+    return;
+  }
+
+  // 2. Validate date of birth
+  if (!dateOfBirth) {
+    res.status(400).json({ error: "Patient date of birth is required." });
+    return;
+  }
+  const parsedDob = new Date(dateOfBirth);
+  if (isNaN(parsedDob.getTime())) {
+    res.status(400).json({ error: "Invalid date format for date of birth." });
+    return;
+  }
+  if (parsedDob > new Date()) {
+    res.status(400).json({ error: "Date of birth cannot be in the future." });
+    return;
+  }
+
+  // 3. Validate emergency contact name
+  if (!emergencyName || typeof emergencyName !== "string" || emergencyName.trim().length < 2) {
+    res.status(400).json({ error: "Primary emergency contact name is required." });
+    return;
+  }
+
+  // 4. Validate emergency contact phone
+  if (!emergencyPhone || typeof emergencyPhone !== "string" || !validatePhone(emergencyPhone)) {
+    res.status(400).json({ error: "Emergency contact phone must contain between 8 and 15 digits." });
+    return;
+  }
+
+  // 5. Generate unique ID & MRN
+  const patientId = `p_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+  const patientMrn = mrn?.trim() || `MS-${String.fromCharCode(65 + (db.patients.length % 26))}-${1080 + db.patients.length + 1}`;
+
+  const newPatient: DBPatient = {
+    id: patientId,
+    mrn: patientMrn,
+    name: name.trim(),
+    dateOfBirth: parsedDob,
+    sex: sex?.trim() || "Undisclosed",
+    emergencyName: emergencyName.trim(),
+    emergencyPhone: emergencyPhone.trim(),
+    notes: notes?.trim() || "Newly onboarded patient at clinical station.",
+    createdAt: new Date(),
+  };
+
+  db.patients.push(newPatient);
+
+  // 6. Automatically assign patient to current caregiver
+  const caregiver = db.caregivers.find((c) => c.userId === session.id) || db.caregivers[0];
+  const doctor = db.doctors[0];
+
+  const assignment = {
+    id: `pa_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+    patientId: newPatient.id,
+    doctorId: doctor?.id || null,
+    caregiverId: caregiver?.id || null,
+    active: true,
+    createdAt: new Date(),
+  };
+  db.patientAssignments.push(assignment);
+
+  // 7. Audit logging
+  if (db.auditLogs) {
+    db.auditLogs.push({
+      id: `audit_${Date.now()}`,
+      userId: session.id,
+      role: session.role,
+      patientId: newPatient.id,
+      action: "PATIENT_ONBOARDED",
+      previousValue: null,
+      newValue: JSON.stringify({
+        id: newPatient.id,
+        mrn: newPatient.mrn,
+        name: newPatient.name,
+        assignedCaregiverId: caregiver?.id || null,
+      }),
+      deviceId: null,
+      result: "SUCCESS",
+      timestamp: new Date(),
+    } as any);
+  }
+
+  res.status(201).json({
+    ok: true,
+    message: "Patient onboarded successfully.",
+    patient: {
+      id: newPatient.id,
+      mrn: newPatient.mrn,
+      name: newPatient.name,
+      dateOfBirth: newPatient.dateOfBirth.toISOString().split("T")[0],
+      sex: newPatient.sex,
+      emergencyName: newPatient.emergencyName,
+      emergencyPhone: newPatient.emergencyPhone,
+      notes: newPatient.notes,
+    },
+  });
+}
+
 // Router configuration
 caregiverPatientEditorRouter.get("/assigned-patients", handleGetAssignedPatients);
 caregiverPatientEditorRouter.get("/patient-details/:id", handleGetCaregiverPatient);
 caregiverPatientEditorRouter.put("/patient-details/:id", handleUpdateCaregiverPatient);
 caregiverPatientEditorRouter.patch("/patient-details/:id", handleUpdateCaregiverPatient);
+caregiverPatientEditorRouter.post("/patients", handleCreateCaregiverPatient);
+caregiverPatientEditorRouter.post("/add-patient", handleCreateCaregiverPatient);
