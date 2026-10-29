@@ -1351,8 +1351,11 @@ app.post("/api/device/command", (req, res) => {
 
 // ─── Serve client SPA in production ──────────────────────────────────────────
 
-const clientDist = path.resolve(process.cwd(), "dist/client");
-if (fs.existsSync(clientDist)) {
+const clientDist = fs.existsSync(path.resolve(process.cwd(), "dist/index.html"))
+  ? path.resolve(process.cwd(), "dist")
+  : path.resolve(process.cwd(), "dist/client");
+
+if (fs.existsSync(path.join(clientDist, "index.html"))) {
   app.use(express.static(clientDist));
   // SPA fallback for client-side routing
   app.get("*", (req, res, next) => {
