@@ -7,6 +7,8 @@ if (typeof (process as any).loadEnvFile === "function") {
   }
 }
 
+import path from "node:path";
+import fs from "node:fs";
 import express from "express";
 import cors from "cors";
 import { SignJWT, jwtVerify, decodeJwt } from "jose";
@@ -1346,6 +1348,20 @@ app.post("/api/device/command", (req, res) => {
 
   res.json({ ok: true });
 });
+
+// ─── Serve client SPA in production ──────────────────────────────────────────
+
+const clientDist = path.resolve(process.cwd(), "dist/client");
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  // SPA fallback for client-side routing
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      return next();
+    }
+    res.sendFile(path.join(clientDist, "index.html"));
+  });
+}
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 

@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: mediserve
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: AUTH_MODE
+        value: dev
