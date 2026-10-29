@@ -1,0 +1,331 @@
+openapi: 3.0.3
+info:
+  title: MediServe Clinical & Hardware IoT API
+  version: 1.0.0
+  description: >-
+    REST and IoT Gateway API for MediServe: Smart Medication Dispensing & Patient Monitoring System.
+    Includes clinical endpoints for Caregivers, Doctors, and Administrators, alongside hardware endpoints
+    polled/published by ESP32 physical units and the browser simulator.
+servers:
+  - url: http://localhost:3001
+    description: Local Development Backend Server
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: mediserve_session
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    SessionUser:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [CAREGIVER, DOCTOR, ADMIN]
+
+    Patient:
+      type: object
+      properties:
+        id:
+          type: string
+        mrn:
+          type: string
+        name:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date-time
+        sex:
+          type: string
+        emergencyName:
+          type: string
+        emergencyPhone:
+          type: string
+        notes:
+          type: string
+
+    MedicationPlan:
+      type: object
+      properties:
+        id:
+          type: string
+        patientId:
+          type: string
+        medicationName:
+          type: string
+        dosage:
+          type: string
+        frequency:
+          type: string
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+          nullable: true
+        scheduledTime:
+          type: string
+        mealRelationship:
+          type: string
+          enum: [NO_MEAL_DEPENDENCY, AFTER_MEAL, BEFORE_MEAL, WITH_MEAL, EMPTY_STOMACH]
+        deviceSlot:
+          type: integer
+          minimum: 1
+          maximum: 4
+        instructions:
+          type: string
+
+    MedicationEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "ME-20261027-0900-001"
+        patientId:
+          type: string
+        planId:
+          type: string
+        scheduledAt:
+          type: string
+          format: date-time
+        state:
+          type: string
+          enum: [SCHEDULED, NOTIFIED, DUE, DISPENSED, CONFIRMED, MISSED, NEEDS_REVIEW]
+        dispensedAt:
+          type: string
+          format: date-time
+          nullable: true
+        confirmedAt:
+          type: string
+          format: date-time
+          nullable: true
+        deviceId:
+          type: string
+          nullable: true
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: string
+        patientId:
+          type: string
+        severity:
+          type: string
+          enum: [INFO, WARNING, URGENT]
+        message:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, ACKNOWLEDGED, RESOLVED]
+        createdAt:
+          type: string
+          format: date-time
+
+paths:
+  /api/auth/login:
+    post:
+      summary: Authenticate user session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Successfully authenticated session
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/SessionUser'
+        '401':
+          description: Invalid email or password
+
+  /api/auth/me:
+    get:
+      summary: Retrieve current authenticated session
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/SessionUser'
+        '401':
+          description: Unauthorized
+
+  /api/caregiver/dashboard:
+    get:
+      summary: Retrieve Caregiver dashboard cohort metrics & active alerts
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  patients:
+                    type: array
+                    items:
+                      type: object
+                  totals:
+                    type: object
+
+  /api/doctor/overview:
+    get:
+      summary: Retrieve Physician cohort adherence and clinical alerts
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /api/plans:
+    post:
+      summary: Physician prescripts new medication schedule
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [patientId, medicine, dosage, frequency, scheduledTime, startDate, deviceSlot]
+              properties:
+                patientId:
+                  type: string
+                medicine:
+                  type: string
+                dosage:
+                  type: string
+                frequency:
+                  type: string
+                scheduledTime:
+                  type: string
+                startDate:
+                  type: string
+                mealRelationship:
+                  type: string
+                deviceSlot:
+                  type: integer
+                instructions:
+                  type: string
+      responses:
+        '201':
+          description: Medication plan established and audit logged
+        '400':
+          description: Validation failure or unassigned patient
+
+  /api/simulator/data:
+    get:
+      summary: Retrieve all simulated hardware units, active slots, and MQTT logs
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  devices:
+                    type: array
+                    items:
+                      type: object
+                  pending:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MedicationEvent'
+                  messagesByDevice:
+                    type: object
+
+  /api/simulator/tick:
+    post:
+      summary: Advance stepper motor and dispense medication for pending event
+      security:
+        - cookieAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deviceId:
+                  type: string
+      responses:
+        '200':
+          description: Dispense executed; slot decremented and MQTT telemetry logged
+
+  /api/simulator/confirm:
+    post:
+      summary: Simulate tactile physical confirmation push button
+      security:
+        - cookieAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deviceId:
+                  type: string
+      responses:
+        '200':
+          description: Dose confirmed; alerts resolved and timeline updated
+
+  /api/simulator/state:
+    post:
+      summary: Inject hardware diagnostic/fault state (JAMMED, LOW_BATTERY, etc.)
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId, state]
+              properties:
+                deviceId:
+                  type: string
+                state:
+                  type: string
+                  enum: [ONLINE, OFFLINE, READY, DISPENSING, DISPENSED, JAMMED, LOW_STOCK, LOW_BATTERY, SENSOR_ERROR]
+      responses:
+        '200':
+          description: State updated and clinical alerts propagated

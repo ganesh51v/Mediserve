@@ -1,0 +1,296 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String
+  createdAt    DateTime @default(now())
+  doctor       Doctor?
+  caregiver    Caregiver?
+  auditLogs    AuditLog[]
+  notifications Notification[]
+  acknowledgedAlerts Alert[] @relation("AlertAcknowledgedBy")
+}
+
+model Patient {
+  id                 String   @id @default(cuid())
+  mrn                String   @unique
+  name               String
+  dateOfBirth        DateTime
+  sex                String
+  emergencyName      String
+  emergencyPhone     String
+  notes              String   @default("")
+  createdAt          DateTime @default(now())
+  assignments        PatientAssignment[]
+  medicationPlans    MedicationPlan[]
+  medicationEvents   MedicationEvent[]
+  mealSchedules      MealSchedule[]
+  mealEvents         MealEvent[]
+  devices            Device[]
+  healthMeasurements HealthMeasurement[]
+  alerts             Alert[]
+  adherenceRecords   AdherenceRecord[]
+  auditLogs          AuditLog[]
+  timelineEvents     TimelineEvent[]
+  clinicalNotes      ClinicalNote[]
+}
+
+model Doctor {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  npi    String
+  specialty String
+  assignments PatientAssignment[]
+  clinicalNotes ClinicalNote[]
+}
+
+model Caregiver {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone  String
+  assignments PatientAssignment[]
+}
+
+model PatientAssignment {
+  id          String   @id @default(cuid())
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId    String?
+  doctor      Doctor?  @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  caregiverId String?
+  caregiver   Caregiver? @relation(fields: [caregiverId], references: [id], onDelete: SetNull)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model Medication {
+  id          String @id @default(cuid())
+  name        String
+  form        String
+  strength    String
+  plans       MedicationPlan[]
+}
+
+model MedicationPlan {
+  id               String   @id @default(cuid())
+  patientId        String
+  patient          Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  medicationId     String
+  medication       Medication @relation(fields: [medicationId], references: [id])
+  dosage           String
+  frequency        String
+  startDate        DateTime
+  endDate          DateTime?
+  scheduledTime    String
+  mealRelationship String
+  mealKind         String?
+  instructions     String
+  deviceSlot       Int
+  authorizedBy     String
+  status           String   @default("ACTIVE")
+  createdAt        DateTime @default(now())
+  events           MedicationEvent[]
+}
+
+model MedicationEvent {
+  id             String   @id
+  patientId      String
+  patient        Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  planId         String
+  plan           MedicationPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  scheduledAt    DateTime
+  state          String
+  eligibleAt     DateTime?
+  notifiedAt     DateTime?
+  dispensedAt    DateTime?
+  confirmedAt    DateTime?
+  missedAt       DateTime?
+  failedReason   String?
+  delayMinutes   Int?
+  deviceId       String?
+  createdAt      DateTime @default(now())
+  dispensingEvents DispensingEvent[]
+}
+
+model MealSchedule {
+  id        String @id @default(cuid())
+  patientId String
+  patient   Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  kind      String
+  typicalTime String
+  active    Boolean @default(true)
+}
+
+model MealEvent {
+  id          String   @id @default(cuid())
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  kind        String
+  eventType   String
+  occurredAt  DateTime
+  source      String
+  notes       String   @default("")
+}
+
+model Device {
+  id            String @id @default(cuid())
+  serial        String @unique
+  patientId     String?
+  patient       Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  firmware      String @default("sim-0.1.0")
+  simState      String @default("ONLINE")
+  online        Boolean @default(true)
+  batteryPct    Int     @default(84)
+  wifiQuality   String  @default("Good")
+  door          String  @default("Closed")
+  motor         String  @default("Ready")
+  sensors       String  @default("Normal")
+  lastSeenAt    DateTime @default(now())
+  slots         DeviceSlot[]
+  telemetry     DeviceTelemetry[]
+  deviceEvents  DeviceEvent[]
+  dispensing    DispensingEvent[]
+}
+
+model DeviceSlot {
+  id        String @id @default(cuid())
+  deviceId  String
+  device    Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  slotIndex Int
+  stock     String
+  count     Int    @default(10)
+}
+
+model DeviceTelemetry {
+  id        String   @id @default(cuid())
+  deviceId  String
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  batteryPct Int
+  wifiRssi  Int
+  online    Boolean
+  recordedAt DateTime @default(now())
+}
+
+model DeviceEvent {
+  id        String   @id @default(cuid())
+  deviceId  String
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  type      String
+  payload   String
+  createdAt DateTime @default(now())
+}
+
+model DispensingEvent {
+  id                 String @id @default(cuid())
+  deviceId           String
+  device             Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  medicationEventId  String
+  medicationEvent    MedicationEvent @relation(fields: [medicationEventId], references: [id], onDelete: Cascade)
+  slotIndex          Int
+  result             String
+  sensorVerified     Boolean @default(false)
+  createdAt          DateTime @default(now())
+}
+
+model HealthMeasurement {
+  id          String   @id @default(cuid())
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  type        String
+  value       String
+  unit        String
+  source      String
+  status      String
+  recordedAt  DateTime
+}
+
+model Alert {
+  id               String   @id @default(cuid())
+  patientId        String
+  patient          Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  category         String
+  priority         String
+  title            String
+  body             String
+  isDiagnosis      Boolean  @default(false)
+  acknowledged     Boolean  @default(false)
+  acknowledgedById String?
+  acknowledgedBy   User?    @relation("AlertAcknowledgedBy", fields: [acknowledgedById], references: [id])
+  createdAt        DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel   String
+  title     String
+  body      String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model AdherenceRecord {
+  id          String   @id @default(cuid())
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  period      String
+  periodStart DateTime
+  taken       Int
+  missed      Int
+  delayed     Int
+  failed      Int
+  ratePct     Float
+}
+
+model TimelineEvent {
+  id        String   @id @default(cuid())
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  occurredAt DateTime
+  title     String
+  detail    String
+  source    String
+}
+
+model ClinicalNote {
+  id        String   @id @default(cuid())
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId  String
+  doctor    Doctor   @relation(fields: [doctorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id])
+  role          String
+  patientId     String?
+  patient       Patient? @relation(fields: [patientId], references: [id])
+  action        String
+  timestamp     DateTime @default(now())
+  previousValue String   @default("")
+  newValue      String   @default("")
+  deviceId      String?
+  result        String   @default("OK")
+}
+
+model SystemConfig {
+  id    String @id @default("default")
+  json  String
+}

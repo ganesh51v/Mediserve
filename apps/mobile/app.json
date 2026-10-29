@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "MediServe Mobile",
+    "slug": "mediserve-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#102A43"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#102A43"
+      }
+    },
+    "scheme": "mediserve"
+  }
+}
+

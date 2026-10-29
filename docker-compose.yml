@@ -1,0 +1,63 @@
+version: "3.8"
+
+services:
+  # -------------------------------------------------------------
+  # 1. MediServe Backend API Server
+  # -------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mediserve_api
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - DATABASE_URL=postgresql://mediserve:mediserve_secure_pw@postgres:5432/mediserve_db?schema=public
+      - MQTT_BROKER_URL=mqtt://mqtt_broker:1883
+      - SESSION_SECRET=mediserve-clinical-session-secret-key-32bytes
+      - NODE_ENV=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mqtt_broker:
+        condition: service_started
+
+  # -------------------------------------------------------------
+  # 2. Eclipse Mosquitto MQTT Gateway
+  # -------------------------------------------------------------
+  mqtt_broker:
+    image: eclipse-mosquitto:2.0
+    container_name: mediserve_mqtt
+    restart: unless-stopped
+    ports:
+      - "1883:1883"   # Standard MQTT
+      - "9001:9001"   # MQTT over WebSockets
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+
+  # -------------------------------------------------------------
+  # 3. PostgreSQL Clinical Database
+  # -------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: mediserve_postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=mediserve
+      - POSTGRES_PASSWORD=mediserve_secure_pw
+      - POSTGRES_DB=mediserve_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mediserve -d mediserve_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+    driver: local
