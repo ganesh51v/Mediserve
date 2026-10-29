@@ -52,6 +52,9 @@ export async function resolveSessionUser(req: Request): Promise<any | null> {
               email: user.email,
               name: user.name,
               role: user.role,
+              phone: user.phone,
+              verificationStatus: user.verificationStatus ?? "APPROVED",
+              isVerified: user.isVerified ?? true,
               doctorId: doctor?.id,
               caregiverId: caregiver?.id,
             };
@@ -68,7 +71,7 @@ export async function resolveSessionUser(req: Request): Promise<any | null> {
   return null;
 }
 
-export function requireV1Auth(allowedRoles?: string[]) {
+export function requireV1Auth(allowedRoles?: string[], requireVerified: boolean = true) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const csrf = checkCsrf(req);
     if (!csrf.safe) {
@@ -79,6 +82,15 @@ export function requireV1Auth(allowedRoles?: string[]) {
     const user = await resolveSessionUser(req);
     if (!user) {
       res.status(401).json({ error: "Unauthenticated. Valid Bearer token required." });
+      return;
+    }
+
+    if (requireVerified && user.verificationStatus === "PENDING" && user.role !== "ADMIN") {
+      res.status(403).json({
+        error: "Account pending administrative verification. Access to clinical patient records is restricted until credentials are confirmed.",
+        code: "VERIFICATION_PENDING",
+        verificationStatus: "PENDING",
+      });
       return;
     }
     if (allowedRoles && !allowedRoles.includes(user.role)) {

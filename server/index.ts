@@ -22,6 +22,8 @@ import {
   handleLogin,
   handleLogout,
   handleMe,
+  handleVerificationStatus,
+  handleVerifyUser,
   checkCsrf,
   revocationStore,
   extractRequestToken,
@@ -262,6 +264,16 @@ function requireAuth(roles?: string[]) {
       res.status(401).json({ error: "Unauthenticated" });
       return;
     }
+    // Clinical Verification Gating:
+    // If account is pending verification and not ADMIN, gate access to clinical resources
+    if (session.verificationStatus === "PENDING" && session.role !== "ADMIN") {
+      res.status(403).json({
+        error: "Account pending administrative verification. Access to clinical patient records is restricted until credentials are confirmed.",
+        code: "VERIFICATION_PENDING",
+        verificationStatus: "PENDING",
+      });
+      return;
+    }
     if (roles && !roles.includes(session.role)) {
       res.status(403).json({ error: "Forbidden" });
       return;
@@ -305,6 +317,9 @@ app.post("/api/auth/signup", handleRegister);
 app.post("/api/auth/login", handleLogin);
 app.post("/api/auth/logout", handleLogout);
 app.get("/api/auth/me", handleMe);
+app.get("/api/auth/verification-status", handleVerificationStatus);
+app.post("/api/admin/verify-user", requireAuth(["ADMIN"]), handleVerifyUser);
+
 
 // ─── Caregiver routes ─────────────────────────────────────────────────────────
 

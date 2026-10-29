@@ -1,10 +1,14 @@
 export type Role = "ADMIN" | "DOCTOR" | "CAREGIVER";
+export type VerificationStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 export type SessionUser = {
   id: string;
   email: string;
   name: string;
   role: Role;
+  phone?: string;
+  verificationStatus?: VerificationStatus;
+  isVerified?: boolean;
   doctorId?: string;
   caregiverId?: string;
 };

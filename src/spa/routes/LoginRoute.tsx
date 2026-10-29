@@ -15,7 +15,7 @@
  */
 
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useSignIn } from "@clerk/react";
 import { useAuth, setClerkToken, resolveApiUrl, parseJsonSafely } from "../hooks";
 import { CLERK_ENABLED } from "../auth/clerk";
@@ -819,6 +819,17 @@ export function LoginRoute() {
                   )}
                 </button>
               </form>
+
+              {/* ── Practitioner Onboarding Link ── */}
+              <div className="mt-4 text-center">
+                <span className="text-xs text-[#627D98]">New clinician or caregiver? </span>
+                <Link
+                  to="/register"
+                  className="text-xs font-semibold text-[#0D9488] hover:underline cursor-pointer"
+                >
+                  Register for Clinical Clearance &rarr;
+                </Link>
+              </div>
 
               {/* ── Institutional Audit Warning ── */}
               <div className="mt-7 pt-4 border-t border-[#D9E2EC] text-center">

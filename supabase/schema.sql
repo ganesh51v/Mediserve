@@ -12,7 +12,10 @@ CREATE TABLE IF NOT EXISTS public.users (
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   name TEXT NOT NULL,
+  phone TEXT,
   role TEXT NOT NULL CHECK (role IN ('ADMIN', 'DOCTOR', 'CAREGIVER')),
+  verification_status TEXT NOT NULL DEFAULT 'PENDING' CHECK (verification_status IN ('PENDING', 'APPROVED', 'REJECTED')),
+  is_verified BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -20,15 +23,23 @@ CREATE TABLE IF NOT EXISTS public.users (
 CREATE TABLE IF NOT EXISTS public.doctors (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID UNIQUE NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  npi TEXT NOT NULL,
-  specialty TEXT NOT NULL
+  npi TEXT,
+  license_number TEXT,
+  issuing_authority TEXT,
+  specialty TEXT NOT NULL,
+  hospital_affiliation TEXT,
+  years_of_practice INT DEFAULT 0
 );
 
 -- 3. Caregivers Table
 CREATE TABLE IF NOT EXISTS public.caregivers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID UNIQUE NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  phone TEXT NOT NULL
+  phone TEXT NOT NULL,
+  certifications TEXT,
+  years_of_experience INT DEFAULT 0,
+  types_of_care TEXT,
+  availability TEXT
 );
 
 -- 4. Patients Table

@@ -176,6 +176,26 @@ export function useAuth() {
     return data;
   };
 
+  const register = async (payload: Record<string, any>) => {
+    setError(null);
+    const res = await apiFetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await parseJsonSafely(res);
+    if (!res.ok) {
+      const err = new Error(data.error || "Registration failed");
+      (err as any).errors = data.errors;
+      throw err;
+    }
+    if (data.token) {
+      setClerkToken(data.token);
+    }
+    setUser(data.user);
+    return data;
+  };
+
   const logout = async () => {
     try {
       await apiFetch("/api/auth/logout", { method: "POST" });
@@ -190,6 +210,7 @@ export function useAuth() {
     loading,
     error,
     login,
+    register,
     logout,
     refresh: fetchMe,
     isSignedIn: Boolean(user),

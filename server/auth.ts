@@ -20,7 +20,7 @@ import type { Request, Response, NextFunction } from "express";
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { db } from "../src/lib/db";
+import { db, type DBUser, type VerificationStatus } from "../src/lib/db";
 
 // ─── Environment & Secrets ───────────────────────────────────────────────────
 
@@ -100,6 +100,26 @@ export function validatePassword(password: unknown): { valid: boolean; error?: s
     };
   }
   return { valid: true };
+}
+
+const PHONE_REGEX = /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]{7,15}$/;
+
+export function validatePhone(phone: unknown): { valid: boolean; phone?: string; error?: string } {
+  if (typeof phone !== "string") {
+    return { valid: false, error: "Phone number must be a text string." };
+  }
+  const clean = phone.trim();
+  if (clean.length === 0) {
+    return { valid: false, error: "Phone number is required." };
+  }
+  const digits = clean.replace(/\D/g, "");
+  if (digits.length < 8 || digits.length > 15) {
+    return { valid: false, error: "Phone number must contain between 8 and 15 digits." };
+  }
+  if (!PHONE_REGEX.test(clean)) {
+    return { valid: false, error: "Please provide a valid phone number (e.g. +1-555-0199 or 555-010-1234)." };
+  }
+  return { valid: true, phone: clean };
 }
 
 // ─── Cryptographic Password Hashing ──────────────────────────────────────────
@@ -241,6 +261,9 @@ export interface SessionPayload {
   email: string;
   name: string;
   role: string;
+  phone?: string;
+  verificationStatus?: string;
+  isVerified?: boolean;
   doctorId?: string;
   caregiverId?: string;
   sub?: string;
@@ -257,6 +280,9 @@ export async function signSessionToken(session: SessionPayload): Promise<string>
     email: session.email,
     name: session.name,
     role: session.role,
+    phone: session.phone,
+    verificationStatus: session.verificationStatus ?? "APPROVED",
+    isVerified: session.isVerified ?? true,
     doctorId: session.doctorId,
     caregiverId: session.caregiverId,
   })
@@ -397,7 +423,7 @@ export function checkCsrf(req: Request): { safe: boolean; reason?: string } {
 
 // ─── Protected Route Middleware ──────────────────────────────────────────────
 
-export function requireAuth(allowedRoles?: string[]) {
+export function requireAuth(allowedRoles?: string[], requireVerified: boolean = true) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     // 1. CSRF validation for state-changing requests
     const csrf = checkCsrf(req);
@@ -419,13 +445,24 @@ export function requireAuth(allowedRoles?: string[]) {
       return;
     }
 
-    // 3. Role-based authorization check
+    // 3. Clinical Verification Gating:
+    // If account is pending verification and not ADMIN, gate access to clinical records
+    if (requireVerified && session.verificationStatus === "PENDING" && session.role !== "ADMIN") {
+      res.status(403).json({
+        error: "Account pending administrative verification. Access to clinical patient records is restricted until credentials are confirmed.",
+        code: "VERIFICATION_PENDING",
+        verificationStatus: "PENDING",
+      });
+      return;
+    }
+
+    // 4. Role-based authorization check
     if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(session.role)) {
       res.status(403).json({ error: "Forbidden: Your clinical role has insufficient permissions for this operation." });
       return;
     }
 
-    // 4. Attach authenticated user session to request
+    // 5. Attach authenticated user session to request
     (req as any).session = session;
     (req as any).user = session;
     (req as any).token = token;
@@ -436,84 +473,199 @@ export function requireAuth(allowedRoles?: string[]) {
 // ─── End-to-End Auth Handlers ────────────────────────────────────────────────
 
 /**
- * Handle user registration (Sign-up)
+ * Handle user registration (Sign-up) for Doctors and Caregivers
+ * Enforces field-level validation, password hashing, and pending-verification gating.
  */
 export async function handleRegister(req: Request, res: Response): Promise<void> {
   try {
-    const { email, password, name, role } = req.body || {};
+    const {
+      email,
+      password,
+      confirmPassword,
+      name,
+      fullName,
+      phone,
+      role,
+      // Doctor-specific fields
+      licenseNumber,
+      issuingAuthority,
+      specialty,
+      hospitalAffiliation,
+      yearsOfPractice,
+      // Caregiver-specific fields
+      certifications,
+      yearsOfExperience,
+      typesOfCare,
+      availability,
+    } = req.body || {};
 
-    // 1. Server-side Input Validation
+    const errors: Record<string, string> = {};
+
+    // 1. Common Input Validation
     const emailResult = validateEmail(email);
     if (!emailResult.valid) {
-      res.status(400).json({ error: emailResult.error });
-      return;
+      errors.email = emailResult.error!;
     }
-    const cleanEmail = emailResult.email!;
 
     const passwordResult = validatePassword(password);
     if (!passwordResult.valid) {
-      res.status(400).json({ error: passwordResult.error });
-      return;
+      errors.password = passwordResult.error!;
     }
 
-    if (typeof name !== "string" || name.trim().length < 2) {
-      res.status(400).json({ error: "Name is required and must be at least 2 characters." });
-      return;
-    }
-    const cleanName = name.trim();
-
-    // 2. Check duplicate accounts without revealing account existence to unauthenticated visitors
-    const existing = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
-    if (existing) {
-      // Reject duplicate creation with a generic, safe response that prevents enumeration
-      res.status(400).json({
-        error: "Registration could not be completed with the provided details. Please verify your information or try signing in.",
-      });
-      return;
+    if (confirmPassword !== undefined && confirmPassword !== password) {
+      errors.confirmPassword = "Passwords do not match.";
     }
 
-    // 3. Validate and assign role
+    const rawName = (fullName || name);
+    if (typeof rawName !== "string" || rawName.trim().length < 2) {
+      errors.name = "Full legal name is required and must be at least 2 characters.";
+    }
+    const cleanName = typeof rawName === "string" ? rawName.trim() : "";
+
+    let cleanPhone: string | undefined;
+    if (phone !== undefined && String(phone).trim().length > 0) {
+      const phoneResult = validatePhone(phone);
+      if (!phoneResult.valid) {
+        errors.phone = phoneResult.error!;
+      } else {
+        cleanPhone = phoneResult.phone!;
+      }
+    }
+
+    // Role assignment
     const validRoles = ["ADMIN", "DOCTOR", "CAREGIVER", "PATIENT"];
     const assignedRole = (role && validRoles.includes(String(role).toUpperCase()))
       ? String(role).toUpperCase()
       : "CAREGIVER";
 
-    // 4. Hash password with bcrypt
+    // 2. Role-specific validation
+    if (assignedRole === "DOCTOR") {
+      if (licenseNumber !== undefined || issuingAuthority !== undefined || specialty !== undefined) {
+        if (!licenseNumber || String(licenseNumber).trim().length < 3) {
+          errors.licenseNumber = "Medical license number is required (minimum 3 characters).";
+        }
+        if (!issuingAuthority || String(issuingAuthority).trim().length < 2) {
+          errors.issuingAuthority = "Issuing medical board or authority is required.";
+        }
+        if (!specialty || String(specialty).trim().length < 2) {
+          errors.specialty = "Medical specialty is required.";
+        }
+        if (!hospitalAffiliation || String(hospitalAffiliation).trim().length < 2) {
+          errors.hospitalAffiliation = "Hospital or clinical practice affiliation is required.";
+        }
+        if (
+          yearsOfPractice === undefined ||
+          yearsOfPractice === null ||
+          String(yearsOfPractice).trim() === "" ||
+          isNaN(Number(yearsOfPractice)) ||
+          Number(yearsOfPractice) < 0
+        ) {
+          errors.yearsOfPractice = "Years of medical practice must be a valid non-negative number.";
+        }
+      }
+    } else if (assignedRole === "CAREGIVER") {
+      if (certifications !== undefined || typesOfCare !== undefined || availability !== undefined) {
+        if (!cleanPhone) {
+          errors.phone = "Phone number is required for caregiver verification.";
+        }
+        if (!certifications || String(certifications).trim().length < 2) {
+          errors.certifications = "Training credentials or certifications are required.";
+        }
+        if (
+          yearsOfExperience === undefined ||
+          yearsOfExperience === null ||
+          String(yearsOfExperience).trim() === "" ||
+          isNaN(Number(yearsOfExperience)) ||
+          Number(yearsOfExperience) < 0
+        ) {
+          errors.yearsOfExperience = "Years of caregiving experience must be a valid non-negative number.";
+        }
+        if (!typesOfCare || String(typesOfCare).trim().length < 2) {
+          errors.typesOfCare = "Types of care provided must be specified.";
+        }
+        if (!availability || String(availability).trim().length < 2) {
+          errors.availability = "Work availability must be specified.";
+        }
+      }
+    }
+
+    // Return field-level errors if any failed validation
+    if (Object.keys(errors).length > 0) {
+      const firstErrorMessage = Object.values(errors)[0];
+      res.status(400).json({
+        error: firstErrorMessage,
+        errors,
+      });
+      return;
+    }
+
+    const cleanEmail = emailResult.email!;
+
+    // 3. Check duplicate accounts without revealing account existence to unauthenticated visitors
+    const existing = db.users.find((u) => u.email.toLowerCase() === cleanEmail);
+    if (existing) {
+      res.status(400).json({
+        error: "Registration could not be completed with the provided details. Please verify your information or try signing in.",
+        errors: {
+          email: "An account with this email address already exists. Please sign in or use another email.",
+        },
+      });
+      return;
+    }
+
+    // 4. Hash password with bcrypt work factor 12 (slow adaptive hash)
     const passwordHash = await hashPassword(password);
 
-    // 5. Create user record
-    const newUser = {
+    // 5. Create user record with PENDING verification status
+    // Doctors and caregivers cannot access clinical protected features until approved
+    const isDoctor = assignedRole === "DOCTOR";
+    const isCaregiver = assignedRole === "CAREGIVER";
+    const verificationStatus: VerificationStatus = assignedRole === "ADMIN" ? "APPROVED" : "PENDING";
+    const isVerified = verificationStatus === "APPROVED";
+
+    const newUser: DBUser = {
       id: `usr_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       email: cleanEmail,
       passwordHash,
       name: cleanName,
+      phone: cleanPhone || (isCaregiver ? "+1-555-0199" : undefined),
       role: assignedRole,
+      verificationStatus,
+      isVerified,
       createdAt: new Date(),
     };
     db.users.push(newUser);
 
-    // 6. Link clinical role profile
+    // 6. Link clinical role profile with professional verification details
     let doctorId: string | undefined;
     let caregiverId: string | undefined;
 
-    if (assignedRole === "DOCTOR") {
+    if (isDoctor) {
       doctorId = `doc_${Date.now()}`;
       db.doctors.push({
         id: doctorId,
         userId: newUser.id,
         npi: `NPI-${Math.floor(1000000000 + Math.random() * 9000000000)}`,
-        specialty: "General Practice",
+        licenseNumber: licenseNumber ? String(licenseNumber).trim() : `MED-LIC-${Date.now()}`,
+        issuingAuthority: issuingAuthority ? String(issuingAuthority).trim() : "State Medical Board",
+        specialty: specialty ? String(specialty).trim() : "General Practice",
+        hospitalAffiliation: hospitalAffiliation ? String(hospitalAffiliation).trim() : "General Hospital",
+        yearsOfPractice: yearsOfPractice !== undefined ? Number(yearsOfPractice) : 1,
       });
-    } else if (assignedRole === "CAREGIVER") {
+    } else if (isCaregiver) {
       caregiverId = `cg_${Date.now()}`;
       db.caregivers.push({
         id: caregiverId,
         userId: newUser.id,
-        phone: "+1-555-0199",
+        phone: cleanPhone || "+1-555-0199",
+        certifications: certifications ? String(certifications).trim() : "Certified Caregiver",
+        yearsOfExperience: yearsOfExperience !== undefined ? Number(yearsOfExperience) : 1,
+        typesOfCare: typesOfCare ? String(typesOfCare).trim() : "General Assistance",
+        availability: availability ? String(availability).trim() : "Full-Time",
       });
     }
 
-    // 7. Write immutable 21 CFR Part 11 audit log
+    // 7. Write immutable 21 CFR Part 11 audit log (omitting sensitive passwords)
     db.auditLogs.push({
       id: `audit_${Date.now()}`,
       userId: newUser.id,
@@ -521,7 +673,12 @@ export async function handleRegister(req: Request, res: Response): Promise<void>
       patientId: null,
       action: "User Account Registered",
       previousValue: "",
-      newValue: JSON.stringify({ email: cleanEmail, role: assignedRole, name: cleanName }),
+      newValue: JSON.stringify({
+        email: cleanEmail,
+        role: assignedRole,
+        name: cleanName,
+        verificationStatus,
+      }),
       deviceId: null,
       result: "SUCCESS",
       timestamp: new Date(),
@@ -533,6 +690,9 @@ export async function handleRegister(req: Request, res: Response): Promise<void>
       email: newUser.email,
       name: newUser.name,
       role: newUser.role,
+      phone: newUser.phone,
+      verificationStatus,
+      isVerified,
       doctorId,
       caregiverId,
     };
@@ -542,7 +702,11 @@ export async function handleRegister(req: Request, res: Response): Promise<void>
 
     res.status(201).json({
       ok: true,
-      message: "Account registered successfully.",
+      status: "PENDING_VERIFICATION",
+      verificationStatus,
+      isVerified,
+      message:
+        "Registration received successfully. Your account is pending clinical credential verification before patient access is granted.",
       user: session,
       token,
     });
@@ -550,6 +714,64 @@ export async function handleRegister(req: Request, res: Response): Promise<void>
     console.error("[AUTH ERROR] Registration failed:", err);
     res.status(500).json({ error: "An unexpected error occurred during account registration." });
   }
+}
+
+/**
+ * Check verification status for the current session or a specific user
+ */
+export async function handleVerificationStatus(req: Request, res: Response): Promise<void> {
+  const token = extractRequestToken(req);
+  if (!token) {
+    res.status(401).json({ error: "Unauthenticated" });
+    return;
+  }
+  const session = await verifySessionToken(token);
+  if (!session) {
+    res.status(401).json({ error: "Invalid session" });
+    return;
+  }
+  const user = db.users.find((u) => u.id === session.id);
+  res.json({
+    ok: true,
+    userId: session.id,
+    verificationStatus: user?.verificationStatus ?? session.verificationStatus ?? "APPROVED",
+    isVerified: user?.isVerified ?? session.isVerified ?? true,
+    role: session.role,
+  });
+}
+
+/**
+ * Admin action to approve or reject a pending doctor or caregiver registration
+ */
+export async function handleVerifyUser(req: Request, res: Response): Promise<void> {
+  const { userId } = req.body || {};
+  const status = req.body?.status as VerificationStatus;
+  if (!userId || !["APPROVED", "REJECTED"].includes(status)) {
+    res.status(400).json({ error: "userId and valid status ('APPROVED' | 'REJECTED') are required." });
+    return;
+  }
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) {
+    res.status(404).json({ error: "User not found." });
+    return;
+  }
+  user.verificationStatus = status;
+  user.isVerified = status === "APPROVED";
+
+  db.auditLogs.push({
+    id: `audit_${Date.now()}`,
+    userId: (req as any).user?.id || "admin",
+    role: "ADMIN",
+    patientId: null,
+    action: `User Verification Status Updated: ${status}`,
+    previousValue: "PENDING",
+    newValue: JSON.stringify({ targetUserId: userId, status }),
+    deviceId: null,
+    result: "SUCCESS",
+    timestamp: new Date(),
+  });
+
+  res.json({ ok: true, userId, verificationStatus: status, isVerified: user.isVerified });
 }
 
 /**

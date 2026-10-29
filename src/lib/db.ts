@@ -3,6 +3,8 @@ import { supabase } from "./supabase";
 
 export { supabase };
 
+export type VerificationStatus = "PENDING" | "APPROVED" | "REJECTED";
+
 // Types matching the MediServe schema
 export interface DBUser {
   id: string;
@@ -10,20 +12,31 @@ export interface DBUser {
   passwordHash: string;
   name: string;
   role: string;
+  phone?: string;
+  verificationStatus?: VerificationStatus;
+  isVerified?: boolean;
   createdAt: Date;
 }
 
 export interface DBDoctor {
   id: string;
   userId: string;
-  npi: string;
+  npi?: string;
+  licenseNumber?: string;
+  issuingAuthority?: string;
   specialty: string;
+  hospitalAffiliation?: string;
+  yearsOfPractice?: number;
 }
 
 export interface DBCaregiver {
   id: string;
   userId: string;
   phone: string;
+  certifications?: string;
+  yearsOfExperience?: number;
+  typesOfCare?: string;
+  availability?: string;
 }
 
 export interface DBPatient {
@@ -297,6 +310,9 @@ export class MemoryDatabase {
       passwordHash,
       name: "System Admin",
       role: "ADMIN",
+      phone: "+1-555-0100",
+      verificationStatus: "APPROVED",
+      isVerified: true,
       createdAt: daysAgo(30),
     };
     const doctorUser: DBUser = {
@@ -305,6 +321,9 @@ export class MemoryDatabase {
       passwordHash,
       name: "Dr. Amrita Shah",
       role: "DOCTOR",
+      phone: "+1-555-0102",
+      verificationStatus: "APPROVED",
+      isVerified: true,
       createdAt: daysAgo(30),
     };
     const caregiverUser: DBUser = {
@@ -313,6 +332,9 @@ export class MemoryDatabase {
       passwordHash,
       name: "Noah Patel",
       role: "CAREGIVER",
+      phone: "+1-555-0142",
+      verificationStatus: "APPROVED",
+      isVerified: true,
       createdAt: daysAgo(30),
     };
     this.users.push(adminUser, doctorUser, caregiverUser);
@@ -321,7 +343,11 @@ export class MemoryDatabase {
       id: "doc-1",
       userId: doctorUser.id,
       npi: "1234567890",
+      licenseNumber: "MED-CA-99210",
+      issuingAuthority: "Medical Board of California",
       specialty: "Internal Medicine",
+      hospitalAffiliation: "St. Jude Clinical Center",
+      yearsOfPractice: 14,
     };
     this.doctors.push(doctorProfile);
 
@@ -329,6 +355,10 @@ export class MemoryDatabase {
       id: "cg-1",
       userId: caregiverUser.id,
       phone: "+1-555-0142",
+      certifications: "CNA, BLS/CPR, Medication Aide",
+      yearsOfExperience: 6,
+      typesOfCare: "Elderly Care, Medication Administration, Post-Op",
+      availability: "Full-Time (Day & Evening Shifts)",
     };
     this.caregivers.push(caregiverProfile);
 
