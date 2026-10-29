@@ -63,6 +63,16 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  // Bypass Vite dev server internal assets, HMR endpoints, and tokens
+  if (
+    url.pathname.startsWith('/@vite') ||
+    url.pathname.startsWith('/@fs') ||
+    url.pathname.startsWith('/__vite') ||
+    url.searchParams.has('token')
+  ) {
+    return;
+  }
+
   // 1. Navigation requests: Network-first with SPA offline app shell fallback
   if (request.mode === 'navigate') {
     event.respondWith(

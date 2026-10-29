@@ -9,6 +9,16 @@ export function registerServiceWorker() {
     return;
   }
 
+  // In development, unregister any active service workers so they don't intercept Vite HMR WebSocket or cache outdated dev tokens
+  if (import.meta.env.DEV) {
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const registration of registrations) {
+        registration.unregister();
+      }
+    });
+    return;
+  }
+
   // Register on window load to avoid delaying initial paint
   window.addEventListener("load", () => {
     navigator.serviceWorker
