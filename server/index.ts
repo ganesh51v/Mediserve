@@ -69,7 +69,25 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.AUTH_SECRET || "dev-secret-mediserve"
 );
 
-app.use(cors({ origin: "http://localhost:3000", credentials: true }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (curl, mobile app, internal healthchecks)
+      if (!origin) return callback(null, true);
+      // Allow localhost, 127.0.0.1, Vercel deployments, and Render deployments
+      if (
+        origin.includes("localhost") ||
+        origin.includes("127.0.0.1") ||
+        origin.endsWith(".vercel.app") ||
+        origin.endsWith(".onrender.com")
+      ) {
+        return callback(null, true);
+      }
+      callback(null, true);
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use("/api/v1", v1Router);
 

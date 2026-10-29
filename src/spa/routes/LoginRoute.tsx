@@ -17,8 +17,28 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSignIn } from "@clerk/react";
-import { useAuth, setClerkToken } from "../hooks";
+import { useAuth, setClerkToken, resolveApiUrl } from "../hooks";
 import { CLERK_ENABLED } from "../auth/clerk";
+
+async function safeJson(res: Response): Promise<any> {
+  const text = await res.text();
+  if (!text || text.trim().length === 0) {
+    if (!res.ok) {
+      throw new Error(
+        `Authentication server returned HTTP ${res.status} (${res.statusText || "No response"}). Please verify backend service status.`
+      );
+    }
+    return {};
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    if (!res.ok) {
+      throw new Error(`Server returned error (${res.status}): ${text.slice(0, 100)}`);
+    }
+    throw new Error("Invalid response format received from authentication gateway.");
+  }
+}
 
 // ─── Persona Definitions ───────────────────────────────────────────────────────
 
@@ -106,12 +126,12 @@ function ClerkLoginExecutor({
 
       if (isLocalDomain) {
         try {
-          const res = await fetch("/api/auth/login", {
+          const res = await fetch(resolveApiUrl("/api/auth/login"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password }),
           });
-          const data = await res.json();
+          const data = await safeJson(res);
           if (res.ok && data.user) {
             if (data.token) {
               setClerkToken(data.token);
@@ -160,12 +180,12 @@ function ClerkLoginExecutor({
         if (result.status === "complete") {
           await setActive({ session: result.createdSessionId });
           await new Promise((r) => setTimeout(r, 400));
-          const res = await fetch("/api/auth/me", {
+          const res = await fetch(resolveApiUrl("/api/auth/me"), {
             headers: {
               Authorization: `Bearer ${(window as any).__clerk_token ?? ""}`,
             },
           });
-          const data = await res.json();
+          const data = await safeJson(res);
           onSuccess(data.user?.role ?? "CAREGIVER");
           return;
         }
@@ -184,12 +204,12 @@ function ClerkLoginExecutor({
       } catch (err: unknown) {
         // Fallback: If enterprise SSO fails, attempt station login if valid
         try {
-          const fallbackRes = await fetch("/api/auth/login", {
+          const fallbackRes = await fetch(resolveApiUrl("/api/auth/login"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password }),
           });
-          const fallbackData = await fallbackRes.json();
+          const fallbackData = await safeJson(fallbackRes);
           if (fallbackRes.ok && fallbackData.user) {
             if (fallbackData.token) {
               setClerkToken(fallbackData.token);

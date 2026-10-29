@@ -52,6 +52,18 @@ export function setClerkToken(token: string | null) {
   }
 }
 
+const API_BASE = (
+  typeof import.meta !== "undefined" && import.meta?.env?.VITE_API_URL
+    ? String(import.meta.env.VITE_API_URL)
+    : ""
+).replace(/\/$/, "");
+
+export function resolveApiUrl(path: string): string {
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  if (API_BASE && path.startsWith("/")) return `${API_BASE}${path}`;
+  return path;
+}
+
 /**
  * Fetch wrapper that attaches the active session token to every request.
  * Works in both Clerk mode and dev mode transparently.
@@ -62,7 +74,8 @@ export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {})
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
   }
-  return fetch(input, {
+  const resolvedInput = typeof input === "string" ? resolveApiUrl(input) : input;
+  return fetch(resolvedInput, {
     ...init,
     credentials: "same-origin",
     headers,
