@@ -91,6 +91,14 @@ app.use(
 app.use(express.json());
 app.use("/api/v1", v1Router);
 
+// ─── Health check endpoints ──────────────────────────────────────────────────
+app.get("/healthz", (_req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+app.get("/api/health", (_req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 
 // ─── Auth helpers ─────────────────────────────────────────────────────────────
 
@@ -1397,8 +1405,9 @@ const isServerless =
   Boolean(process.env.LAMBDA_TASK_ROOT);
 
 if (!isTestRunner && !isServerless) {
-  app.listen(PORT, () => {
-    console.log(`MediServe API running on http://localhost:${PORT}`);
+  const portNumber = Number(PORT) || 3001;
+  app.listen(portNumber, "0.0.0.0", () => {
+    console.log(`MediServe API running on http://0.0.0.0:${portNumber}`);
     startDoseReminderWorker();
   });
 }

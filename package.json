@@ -12,6 +12,9 @@
     "test": "tsx --test tests/unit/authFlow.test.ts tests/unit/adherence.test.ts tests/unit/alerts.test.ts tests/unit/auditAndSecurityFixes.test.ts tests/unit/ids.test.ts tests/unit/mealAware.test.ts tests/unit/pwaAndResponsive.test.ts tests/unit/supabase.test.ts tests/integration/caregiverFlow.test.ts tests/integration/routes.test.ts tests/integration/v1ApiAndChecklist.test.ts",
     "test:auth": "tsx --test tests/unit/authFlow.test.ts"
   },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "dependencies": {
     "@clerk/backend": "^3.26.2",
     "@clerk/react": "^6.18.1",

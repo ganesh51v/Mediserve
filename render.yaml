@@ -5,6 +5,7 @@ services:
     plan: free
     buildCommand: npm install && npm run build
     startCommand: npm start
+    healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV
         value: production
@@ -12,4 +13,3 @@ services:
         generateValue: true
       - key: AUTH_MODE
         value: dev
-
